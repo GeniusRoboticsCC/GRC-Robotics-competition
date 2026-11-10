@@ -361,7 +361,7 @@
       <aside class="panel side-standings desktop-only">
         <div class="row" style="margin-bottom:6px"><div class="section-title" style="margin:0">Live standings</div><span class="pill" id="sideDone">0 / 15</span></div>
         <div class="table-wrap" id="sideTable"></div>
-        <p class="sub">Ranked by total points, then average, then best single match.</p>
+        <p class="sub">Ranked by average points per match played, then best single match.</p>
       </aside>
     </div>
   </section>
@@ -375,7 +375,7 @@
         <a class="btn ghost small" href="display.html" target="_blank" rel="noopener">◫ Audience display ↗</a>
       </div>
       <div class="table-wrap" id="fullTable"></div>
-      <div class="notice" style="margin-top:14px">Ranked by total points, then average points, then best single match. Every team plays 6 matches. Arrows show movement since the most recently scored match.</div>
+      <div class="notice" style="margin-top:14px">Two awards: <b>highest average</b> (points per match played) and <b>best single match</b> (the highest score in one match, shown in gold). The table is ranked by average, then best single match, then total points. Every team plays 6 matches. Arrows show movement since the most recently scored match.</div>
     </div>
   </section>
 
@@ -790,21 +790,28 @@
     const done = G.scoredCount(d);
     const rankCls = r => 'rank' + (done && r.rank <= 3 ? ' r' + r.rank : '');
 
+    const aw = G.awards(d);
+    const bestIds = new Set(aw.single ? aw.single.teams.map(t => t.id) : []);
+    const avg = r => r.played ? G.formatAvg(r.avg) : '—';
+    const best = r => r.played ? r.best : '—';
+
     $('sideDone').textContent = done + ' / ' + G.MATCH_COUNT;
-    $('sideTable').innerHTML = '<table><thead><tr><th>#</th><th>Team</th><th class="num">P</th><th class="num">Pts</th></tr></thead><tbody>' +
-      rows.map(r => `<tr><td><span class="${rankCls(r)}">${r.rank}</span></td><td class="team-cell">${esc(r.team)}</td><td class="num">${r.played}/${r.scheduled}</td><td class="num pts">${r.total}</td></tr>`).join('') +
+    $('sideTable').innerHTML = '<table><thead><tr><th>#</th><th>Team</th><th class="num">P</th><th class="num">Avg</th><th class="num">Best</th></tr></thead><tbody>' +
+      rows.map(r => `<tr><td><span class="${rankCls(r)}">${r.rank}</span></td><td class="team-cell">${esc(r.team)}</td><td class="num">${r.played}/${r.scheduled}</td><td class="num pts">${avg(r)}</td><td class="num"${bestIds.has(r.id) ? ' style="color:var(--gold);font-weight:900"' : ''}>${best(r)}</td></tr>`).join('') +
       '</tbody></table>';
 
-    $('fullTable').innerHTML = '<table><thead><tr><th>#</th><th>Team</th><th class="hide-xs"></th><th class="num">Played</th><th class="num">Points</th><th class="num">Avg</th><th class="num hide-xs">Best</th></tr></thead><tbody>' +
-      rows.map(r => `<tr><td><span class="${rankCls(r)}">${r.rank}</span></td><td class="team-cell">${esc(r.team)}</td><td class="hide-xs">${moveHtml(r)}</td><td class="num">${r.played}/${r.scheduled}</td><td class="num pts" style="${done && r.rank === 1 ? 'color:var(--gold)' : ''}">${r.total}</td><td class="num">${r.avg.toFixed(1)}</td><td class="num hide-xs">${r.best}</td></tr>`).join('') +
+    $('fullTable').innerHTML = '<table><thead><tr><th>#</th><th>Team</th><th class="hide-xs"></th><th class="num">Played</th><th class="num">Avg</th><th class="num">Best</th><th class="num hide-xs">Points</th></tr></thead><tbody>' +
+      rows.map(r => `<tr><td><span class="${rankCls(r)}">${r.rank}</span></td><td class="team-cell">${esc(r.team)}</td><td class="hide-xs">${moveHtml(r)}</td><td class="num">${r.played}/${r.scheduled}</td><td class="num pts" style="${done && r.rank === 1 ? 'color:var(--gold)' : ''}">${avg(r)}</td><td class="num"${bestIds.has(r.id) ? ' style="color:var(--gold);font-weight:900"' : ''}>${best(r)}</td><td class="num hide-xs">${r.total}</td></tr>`).join('') +
       '</tbody></table>';
 
-    const top = G.highScore(d);
-    const leader = done ? rows[0] : null;
+    const names = a => a.teams.map(t => esc(t.team)).join(' & ');
+    const state = a => a.final ? (a.teams.length > 1 ? 'Joint winners · ' : 'Winner · ') : '';
+    const a1 = aw.average, a2 = aw.single;
+    const where = a2 && a2.teams.length === 1 ? ' · Match ' + a2.teams[0].matches.join(' & ') : '';
     $('kpis').innerHTML = [
       ['Completed', done + ' / ' + G.MATCH_COUNT, (G.MATCH_COUNT - done) + ' matches to go'],
-      ['Leader', leader ? esc(leader.team) : '—', leader ? leader.total + ' pts' : 'No scores yet'],
-      ['Best single score', top ? top.points + ' pts' : '—', top ? esc(top.team) + ' · Match ' + top.match : 'No scores yet'],
+      [(a1 ? state(a1) : '') + 'Highest average', a1 ? names(a1) : '—', a1 ? G.formatAvg(a1.value) + ' pts per match' : 'No scores yet'],
+      [(a2 ? state(a2) : '') + 'Best single match', a2 ? a2.value + ' pts' : '—', a2 ? names(a2) + where : 'No scores yet'],
       ['On display', 'Match ' + d.state.current_match, esc(G.matchPhase(d, d.state.current_match).label)],
     ].map(([a, b, c]) => `<div class="kpi"><small>${a}</small><b>${b}</b><span>${c}</span></div>`).join('');
   }

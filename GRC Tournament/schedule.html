@@ -264,7 +264,9 @@
       : next.id === d.state.current_match ? '<b>On the field now</b> (Match ' + next.id + ')'
       : 'Next: <b>Match ' + next.id + '</b>' + (next.id - d.state.current_match === 1 ? ' (up next!)' : ' (' + (next.id - d.state.current_match) + ' matches away)');
     $('summary').innerHTML = `<b>${esc(G.teamName(d, team))}</b> plays matches ${mine.map(m => m.id).join(' · ')}. ` +
-      `${nextTxt}. ${row.played} of ${row.scheduled} played · <b>${row.total} pts</b>${done ? ' · ' + ordinal(row.rank) + ' place' : ''}`;
+      `${nextTxt}. ${row.played} of ${row.scheduled} played` +
+      (row.played ? ` · <b>${G.formatAvg(row.avg)} avg</b> · best match ${row.best} pts` : '') +
+      (done ? ' · ' + ordinal(row.rank) + ' place' : '');
   }
 
   // ------------------------------------------------------------ cards

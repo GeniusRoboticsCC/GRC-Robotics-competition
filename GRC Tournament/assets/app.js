@@ -429,7 +429,8 @@
       });
     });
     rows.forEach(r => { r.avg = r.played ? r.total / r.played : 0; });
-    rows.sort((a, b) => b.total - a.total || b.avg - a.avg || b.best - a.best || a.id - b.id);
+    // Ranked by average points per match played (award 1), then best single match (award 2), then total
+    rows.sort((a, b) => b.avg - a.avg || b.best - a.best || b.total - a.total || a.id - b.id);
     rows.forEach((r, i) => { r.rank = i + 1; });
     return rows;
   }
@@ -476,6 +477,32 @@
     });
     return best;
   }
+
+  // The two tournament awards. Each returns null before any points are scored, otherwise
+  // { value, final, teams: [{ id, team, matches? }] } — more than one team means a tie.
+  // final = all matches are scored, so the leader is the winner.
+  function awards(d) {
+    const final = scoredCount(d) === MATCH_COUNT;
+    const rows = standings(d).filter(r => r.played);
+    let average = null, single = null;
+    if (rows.length && rows[0].avg > 0) {
+      const top = rows[0].avg;
+      average = { value: top, final, teams: rows.filter(r => Math.abs(r.avg - top) < 1e-9).map(r => ({ id: r.id, team: r.team })) };
+    }
+    const hs = highScore(d);
+    if (hs && hs.points > 0) {
+      const byTeam = new Map();
+      d.matches.forEach(m => m.scores && m.scores.forEach((v, slot) => {
+        if (v !== hs.points) return;
+        const id = m.team_ids[slot];
+        if (!byTeam.has(id)) byTeam.set(id, { id, team: teamName(d, id), matches: [] });
+        byTeam.get(id).matches.push(m.id);
+      }));
+      single = { value: hs.points, final, teams: Array.from(byTeam.values()) };
+    }
+    return { average, single };
+  }
+  const formatAvg = n => (Math.round(n * 10) / 10).toFixed(1);
 
   // ---------------------------------------------------------------- backups (compatible with the original admin file)
   function exportBackup() {
@@ -542,7 +569,7 @@
     resetTournament: () => mutate('reset_tournament'),
     restoreBackup: b => mutate('restore_tournament', { p_names: b.names, p_scores: b.scores, p_current: b.current }),
     exportBackup, parseBackup,
-    standings, standingsWithMovement, scoredCount, teamName, clockRemaining, matchPhase, highScore, formatTime, parseTime,
+    standings, standingsWithMovement, scoredCount, teamName, clockRemaining, matchPhase, highScore, awards, formatAvg, formatTime, parseTime,
     esc, toast, keepAwake, $,
   };
 })();

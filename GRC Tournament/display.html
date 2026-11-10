@@ -85,7 +85,27 @@
   .next-team span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
   /* ---------- standings ---------- */
-  .st-head, .st-row { display: grid; grid-template-columns: 2.6em minmax(0, 1fr) 3.4em 4em 2.6em; align-items: center; gap: .7em; }
+  .awards { display: grid; grid-template-columns: max-content minmax(0, 1fr) max-content max-content; gap: 8px 12px; margin-bottom: 12px; }
+  .aw {
+    grid-column: 1 / -1; display: grid; grid-template-columns: 9.5em minmax(0, 1fr) auto auto; grid-template-columns: subgrid;
+    align-items: center; column-gap: 12px; padding: 7px 12px; border-radius: 12px;
+    background: rgba(15, 35, 75, .65); border: 1px solid var(--line); border-left: 4px solid var(--aw, var(--gold));
+  }
+  .aw + .aw { --aw: var(--c-blue); }
+  .aw-k { font-size: 11px; font-weight: 900; line-height: 1.15; letter-spacing: .12em; text-transform: uppercase; color: var(--aw, var(--gold)); white-space: nowrap; }
+  .aw-team { min-width: 0; font-weight: 900; font-size: 17px; line-height: 1.15; overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; word-break: break-word; }
+  .aw-team small { font-size: .62em; font-weight: 800; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); white-space: nowrap; }
+  .aw-team.empty { grid-column: 2 / -1; color: var(--muted-2); font-weight: 700; }
+  .aw-v { font-size: 11px; font-weight: 800; color: var(--muted); text-transform: uppercase; letter-spacing: .06em; white-space: nowrap; text-align: right; }
+  .aw-v b { font-family: var(--font-display); font-size: 24px; line-height: 1; color: var(--text); letter-spacing: 0; margin-right: 4px; }
+  .aw-s { justify-self: end; padding: 2px 8px; border-radius: 999px; background: rgba(255, 255, 255, .07); font-style: normal; font-size: 10px; font-weight: 900; letter-spacing: .1em; text-transform: uppercase; color: var(--muted); white-space: nowrap; }
+  .aw.final { background: linear-gradient(100deg, color-mix(in srgb, var(--aw, var(--gold)) 22%, transparent), rgba(15, 35, 75, .65) 70%); border-color: var(--aw, var(--gold)); }
+  .aw.final .aw-s { background: var(--aw, var(--gold)); color: var(--gold-ink); }
+
+  .st-head, .st-row { display: grid; grid-template-columns: 2.6em minmax(0, 1fr) 3.4em 4em 3.4em 2.6em; align-items: center; gap: .7em; }
+  .st-head .main { color: var(--gold); }
+  .st-best { font-weight: 800; }
+  .st-best.top { color: var(--c-blue); }
   .st-head { padding: 0 .7em .5em; font-weight: 900; text-transform: uppercase; color: var(--muted); border-bottom: 1px solid var(--line); }
   .st-head span { font-size: .66em; letter-spacing: .12em; }
   .st-head .r, .st-row .r { text-align: right; }
@@ -147,6 +167,14 @@
     .next { margin-top: calc(var(--u) * 1.1); padding: calc(var(--u) * .8) calc(var(--u) * 1.1); }
     .next-team { font-size: calc(var(--u) * 1.15); }
     .standings { font-size: calc(var(--u) * 1.25); }
+    .awards { gap: calc(var(--u) * .6) calc(var(--u) * 1); margin-bottom: calc(var(--u) * .8); }
+    .aw { column-gap: calc(var(--u) * 1); padding: calc(var(--u) * .45) calc(var(--u) * 1); border-radius: calc(var(--u) * .8); border-left-width: calc(var(--u) * .35); }
+    .aw-k { font-size: calc(var(--u) * .8); }
+    .aw-team { font-size: calc(var(--u) * 1.4); }
+    .aw-v { font-size: calc(var(--u) * .75); }
+    .aw-v b { font-size: calc(var(--u) * 1.55); }
+    .aw-s { font-size: calc(var(--u) * .7); }
+    .st-row .rank { width: 1.6em; height: 1.6em; }
     .st-list { flex: 1; min-height: 0; grid-template-rows: repeat(10, minmax(0, 1fr)); gap: calc(var(--u) * .45); }
     .st-row { padding: 0 .7em; border-radius: calc(var(--u) * .8); }
     .progress { font-size: calc(var(--u) * 1); }
@@ -162,7 +190,14 @@
     .robot .crown { font-size: 9px; padding: 3px 7px; }
     .clock-card { width: 100%; justify-content: space-between; }
     .d-title { font-size: 26px; }
-    .st-head, .st-row { grid-template-columns: 2.4em minmax(0, 1fr) 3em 3.6em 2.2em; gap: .5em; }
+    .st-head, .st-row { grid-template-columns: 2.1em minmax(0, 1fr) 2.8em 3.1em 2.5em; gap: .45em; }
+    .st-pts { font-size: 1.35em; }
+    .st-team { font-size: 1em; line-height: 1.15; white-space: normal; overflow-wrap: anywhere; }
+    .st-head > :last-child, .st-move { display: none; }
+    .awards { grid-template-columns: minmax(0, 1fr) max-content; }
+    .aw { grid-template-columns: minmax(0, 1fr) auto; grid-template-columns: subgrid; row-gap: 2px; }
+    .aw-k { grid-area: 1 / 1; } .aw-s { grid-area: 1 / 2; } .aw-team { grid-area: 2 / 1; } .aw-v { grid-area: 2 / 2; }
+    .aw-team.empty { grid-column: 1 / -1; }
   }
 
   /* ---------- winner celebration: robot drops in and announces the match winner ---------- */
@@ -321,7 +356,8 @@
         <div class="d-label">Tournament standings</div>
         <span class="pill" id="doneCount">0 / 15 played</span>
       </div>
-      <div class="st-head"><span>#</span><span>Team</span><span class="r">Played</span><span class="r">Points</span><span></span></div>
+      <div class="awards" id="awards"></div>
+      <div class="st-head"><span>#</span><span>Team</span><span class="r">Played</span><span class="r main">Avg</span><span class="r">Best</span><span></span></div>
       <div class="st-list" id="standings"></div>
     </section>
   </main>
@@ -420,6 +456,9 @@
   function renderStandings(done) {
     const list = $('standings');
     const rows = G.standingsWithMovement(d);
+    const aw = G.awards(d);
+    renderAwards(aw);
+    const bestIds = new Set(aw.single ? aw.single.teams.map(t => t.id) : []);
     // FLIP: remember where each row was so re-ordering slides smoothly
     const before = new Map();
     list.querySelectorAll('[data-id]').forEach(el => before.set(el.dataset.id, el.getBoundingClientRect().top));
@@ -432,7 +471,8 @@
         <span class="rank${cls}">${r.rank}</span>
         <span class="st-team">${esc(r.team)}</span>
         <span class="st-played r">${r.played}/${r.scheduled}</span>
-        <span class="st-pts r">${r.total}</span>
+        <span class="st-pts r">${r.played ? G.formatAvg(r.avg) : '—'}</span>
+        <span class="st-best r${bestIds.has(r.id) ? ' top' : ''}">${r.played ? r.best : '—'}</span>
         ${mv}
       </div>`;
     }).join('');
@@ -448,6 +488,22 @@
       if (lastTotals.has(r.id) && lastTotals.get(r.id) !== r.total) el.classList.add('flash');
     });
     lastTotals = new Map(rows.map(r => [r.id, r.total]));
+  }
+
+  // The two awards: highest average and best single match. "Leader" until every match is scored, then "Winner".
+  function awardTile(label, a, value, note) {
+    const tie = a && a.teams.length > 1;
+    const state = !a ? '' : a.final ? (tie ? 'Winners' : 'Winner') : (tie ? 'Tied' : 'Leader');
+    return `<div class="aw${a && a.final ? ' final' : ''}"><span class="aw-k">${label}</span>${a
+      ? `<span class="aw-team">${a.teams.map(t => esc(t.team)).join(' &amp; ')}${note || ''}</span><span class="aw-v">${value}</span><em class="aw-s">${state}</em>`
+      : '<span class="aw-team empty">No scores yet</span>'}</div>`;
+  }
+  function renderAwards(aw) {
+    const s = aw.single;
+    const where = s && s.teams.length === 1 ? ' <small>· Match ' + s.teams[0].matches.join(' & ') + '</small>' : '';
+    $('awards').innerHTML =
+      awardTile('Highest<br>average', aw.average, aw.average && `<b>${G.formatAvg(aw.average.value)}</b>avg`) +
+      awardTile('Best single<br>match', s, s && `<b>${s.value}</b>pts`, where);
   }
 
   // ------------------------------------------------------------ winner celebration
