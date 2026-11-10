@@ -1,0 +1,626 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#060f24">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="GRC Live">
+<title>GRC Live Board</title>
+<link rel="icon" type="image/png" href="assets/favicon.png">
+<link rel="apple-touch-icon" href="assets/apple-touch-icon.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700;800&family=Inter:wght@400;600;700;800;900&display=swap">
+<link rel="stylesheet" href="assets/style.css">
+<style>
+  /* One unit that scales with the screen, so 720p, 1080p, 4K and 4:3 projectors all fit */
+  :root { --u: 10px; }
+  body { overflow-x: hidden; }
+  body.idle { cursor: none; }
+
+  .board { display: grid; gap: 16px; padding: calc(14px + var(--safe-t)) 16px calc(16px + var(--safe-b)); max-width: 1600px; margin: 0 auto; }
+
+  /* ---------- header ---------- */
+  .d-head { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; }
+  .d-logo { width: 64px; height: 64px; object-fit: contain; filter: drop-shadow(0 6px 22px rgba(255, 204, 47, .3)); }
+  .d-titles { flex: 1 1 240px; min-width: 0; }
+  .d-titles .eyebrow { font-size: 12px; }
+  .d-title { font-family: var(--font-display); font-weight: 800; font-size: 32px; line-height: 1; text-transform: uppercase; letter-spacing: .01em; }
+  .d-title span { color: var(--gold); }
+  .clock-card {
+    display: flex; align-items: center; gap: 14px;
+    padding: 10px 18px; border-radius: 16px;
+    background: linear-gradient(160deg, #10285a, #0a1a3b); border: 1px solid var(--line);
+  }
+  .clock-card small { display: block; font-size: 11px; font-weight: 900; letter-spacing: .16em; text-transform: uppercase; color: var(--muted); }
+  .clock-card b { display: block; font-family: var(--font-display); font-size: 46px; line-height: .95; font-variant-numeric: tabular-nums; }
+  .clock-card.running { border-color: rgba(41, 199, 132, .6); }
+  .clock-card.danger b { color: var(--red); animation: throb 1s ease-in-out infinite; }
+  .clock-card.done { border-color: var(--red); background: linear-gradient(160deg, #4a1426, #2a0b18); }
+  .clock-card.done b { color: #ff8a96; animation: blink 1s steps(2, start) infinite; }
+  @keyframes throb { 50% { transform: scale(1.05); } }
+  @keyframes blink { to { opacity: .3; } }
+
+  /* ---------- main grid ---------- */
+  .d-main { display: grid; grid-template-columns: minmax(0, 1fr); gap: 16px; }
+  .d-panel { background: linear-gradient(150deg, rgba(23, 49, 98, .9), rgba(10, 24, 52, .94)); border: 1px solid var(--line); border-radius: 18px; padding: 16px; box-shadow: var(--shadow); min-height: 0; }
+  .d-label { font-size: 12px; font-weight: 900; letter-spacing: .18em; text-transform: uppercase; color: var(--gold); }
+
+  .now-head { display: flex; align-items: flex-end; justify-content: space-between; gap: 12px; flex-wrap: wrap; margin-bottom: 12px; }
+  .now-title { font-family: var(--font-display); font-weight: 800; font-size: 44px; line-height: .9; text-transform: uppercase; }
+  .now-title small { font-size: .5em; color: var(--muted); margin-left: .3em; }
+  .phase { display: inline-flex; align-items: center; gap: 8px; padding: 7px 14px; border-radius: 999px; font-weight: 900; font-size: 13px; letter-spacing: .1em; text-transform: uppercase; background: #183460; color: #c4d5f2; }
+  .phase::before { content: ''; width: 9px; height: 9px; border-radius: 50%; background: currentColor; }
+  .phase[data-k="live"] { background: rgba(41, 199, 132, .18); color: #7ef0bb; }
+  .phase[data-k="live"]::before { animation: livepulse 1.6s infinite; }
+  .phase[data-k="final"] { background: rgba(255, 204, 47, .18); color: var(--gold); }
+  .phase[data-k="awaiting"] { background: rgba(255, 120, 80, .18); color: #ffb08f; }
+
+  .robots { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+  .robot {
+    position: relative; overflow: hidden;
+    display: flex; flex-direction: column; justify-content: space-between; gap: 8px;
+    padding: 14px 14px 12px; border-radius: 14px; min-height: 120px; min-width: 0;
+    background: linear-gradient(160deg, color-mix(in srgb, var(--c) 16%, #0c1d40), #0a1834 70%);
+    border: 1px solid color-mix(in srgb, var(--c) 45%, #1d3560);
+  }
+  .robot::before { content: ''; position: absolute; left: 0; right: 0; top: 0; height: 6px; background: var(--c); box-shadow: 0 0 24px var(--c); }
+  .robot-tag { display: flex; align-items: center; gap: 8px; font-size: 11px; font-weight: 900; letter-spacing: .14em; text-transform: uppercase; color: var(--c); }
+  .robot-team { font-weight: 900; font-size: 20px; line-height: 1.1; overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; word-break: break-word; }
+  .robot-score { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; }
+  .robot-score b { font-family: var(--font-display); font-size: 48px; line-height: .9; font-variant-numeric: tabular-nums; }
+  .robot-score b.empty { color: #3b5581; }
+  .robot-score em { font-style: normal; font-size: 12px; font-weight: 800; color: var(--muted); text-transform: uppercase; letter-spacing: .1em; }
+  .robot.winner { border-color: var(--gold); box-shadow: 0 0 0 2px var(--gold), 0 0 40px -6px rgba(255, 204, 47, .55); }
+  .robot .crown { align-self: center; padding: 4px 10px; border-radius: 999px; background: var(--gold); color: var(--gold-ink); font-size: 11px; font-weight: 900; letter-spacing: .08em; text-transform: uppercase; white-space: nowrap; }
+  .robot.pop b { animation: pop .7s cubic-bezier(.2, 1.6, .4, 1); }
+  @keyframes pop { 0% { transform: scale(.4); opacity: 0; } 100% { transform: none; opacity: 1; } }
+
+  .next { display: flex; align-items: center; gap: 10px 14px; flex-wrap: wrap; margin-top: 12px; padding: 10px 12px; border-radius: 12px; background: rgba(255, 255, 255, .03); border: 1px dashed #2c4a78; }
+  .next .d-label { color: var(--muted); }
+  .next-team { display: inline-flex; align-items: center; gap: 7px; font-weight: 800; font-size: 14px; min-width: 0; }
+  .next-team span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+  /* ---------- standings ---------- */
+  .st-head, .st-row { display: grid; grid-template-columns: 2.6em minmax(0, 1fr) 3.4em 4em 2.6em; align-items: center; gap: .7em; }
+  .st-head { padding: 0 .7em .5em; font-weight: 900; text-transform: uppercase; color: var(--muted); border-bottom: 1px solid var(--line); }
+  .st-head span { font-size: .66em; letter-spacing: .12em; }
+  .st-head .r, .st-row .r { text-align: right; }
+  .st-list { display: grid; gap: 6px; margin-top: 8px; }
+  .st-row { position: relative; padding: 9px .7em; border-radius: 10px; background: rgba(15, 35, 75, .65); border: 1px solid transparent; font-variant-numeric: tabular-nums; will-change: transform; }
+  .st-row.top1 { background: linear-gradient(90deg, rgba(255, 204, 47, .22), rgba(15, 35, 75, .65) 70%); border-color: rgba(255, 204, 47, .45); }
+  .st-row .rank { width: 2.1em; height: 2.1em; font-size: 1em; }
+  .st-team { font-weight: 800; font-size: 1.12em; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .st-played { color: var(--muted); font-weight: 700; }
+  .st-pts { font-family: var(--font-display); font-weight: 800; font-size: 1.6em; line-height: 1; }
+  .st-row.top1 .st-pts { color: var(--gold); }
+  .st-move { font-size: .85em; font-weight: 900; text-align: center; }
+  .st-move.up { color: var(--green); } .st-move.down { color: var(--red); } .st-move.same { color: #4b6390; }
+  .st-row.flash { animation: flash 2.4s ease-out; }
+  @keyframes flash { 0%, 30% { background: rgba(255, 204, 47, .45); border-color: var(--gold); } 100% { } }
+
+  /* ---------- footer ---------- */
+  .d-foot { display: grid; gap: 10px; }
+  .progress { display: flex; align-items: center; gap: 12px; font-size: 13px; font-weight: 800; color: #c4d4ee; }
+  .bar { flex: 1; height: 10px; border-radius: 99px; background: #132a52; overflow: hidden; }
+  .bar i { display: block; height: 100%; width: 0; border-radius: inherit; background: linear-gradient(90deg, var(--gold), #ffe27a); transition: width .8s ease; }
+  .foot-row { display: flex; justify-content: space-between; gap: 10px 20px; flex-wrap: wrap; align-items: center; }
+  .event-line { font-size: 12px; color: var(--muted-2); font-weight: 700; letter-spacing: .08em; text-transform: uppercase; }
+
+  /* ---------- floating controls ---------- */
+  .fab { position: fixed; right: 16px; bottom: calc(16px + var(--safe-b)); z-index: 20; display: flex; gap: 8px; transition: opacity .4s; }
+  body.idle .fab { opacity: 0; pointer-events: none; }
+  .error-overlay { position: fixed; left: 50%; top: 14px; transform: translateX(-50%); z-index: 30; max-width: calc(100vw - 32px); }
+
+  /* ---------- big-screen layout: everything fits on one screen, no scrolling ---------- */
+  @media (min-width: 900px) and (orientation: landscape) {
+    :root { --u: min(1vw, 1.75vh); }
+    html, body { height: 100%; overflow: hidden; }
+    .board { height: 100vh; height: 100dvh; max-width: none; grid-template-rows: auto minmax(0, 1fr) auto; gap: calc(var(--u) * 1.4); padding: calc(var(--u) * 1.6) calc(var(--u) * 2.2); }
+    .d-head { flex-wrap: nowrap; gap: calc(var(--u) * 1.4); }
+    .d-logo { width: calc(var(--u) * 6.4); height: calc(var(--u) * 6.4); }
+    .d-titles .eyebrow { font-size: calc(var(--u) * 1); }
+    .d-title { font-size: calc(var(--u) * 3.4); }
+    .conn { font-size: calc(var(--u) * .9); padding: calc(var(--u) * .45) calc(var(--u) * .9); }
+    .clock-card { padding: calc(var(--u) * .8) calc(var(--u) * 1.6); border-radius: calc(var(--u) * 1.2); }
+    .clock-card small { font-size: calc(var(--u) * .85); }
+    .clock-card b { font-size: calc(var(--u) * 5.2); }
+    .d-main { grid-template-columns: minmax(0, 1.12fr) minmax(0, .88fr); gap: calc(var(--u) * 1.6); min-height: 0; }
+    .d-panel { padding: calc(var(--u) * 1.5); border-radius: calc(var(--u) * 1.4); display: flex; flex-direction: column; }
+    .d-label { font-size: calc(var(--u) * .95); }
+    .now-head { margin-bottom: calc(var(--u) * 1.1); }
+    .now-title { font-size: calc(var(--u) * 4.4); }
+    .phase { font-size: calc(var(--u) * 1); padding: calc(var(--u) * .5) calc(var(--u) * 1.1); }
+    .robots { flex: 1; min-height: 0; grid-template-rows: 1fr 1fr; gap: calc(var(--u) * 1.1); }
+    .robot { min-height: 0; padding: calc(var(--u) * 1.4) calc(var(--u) * 1.4) calc(var(--u) * 1.1); border-radius: calc(var(--u) * 1.1); }
+    .robot::before { height: calc(var(--u) * .5); }
+    .robot-tag { font-size: calc(var(--u) * .95); }
+    /* each card sizes its text to its own height, so long team names never push the score off */
+    .robot { container-type: size; }
+    .robot-team { font-size: calc(var(--u) * 2.3); font-size: min(calc(var(--u) * 2.4), 17cqh); }
+    .robot-score b { font-size: calc(var(--u) * 5.4); font-size: min(calc(var(--u) * 6.4), 42cqh); }
+    .robot-score em { font-size: calc(var(--u) * .9); }
+    .robot .crown { font-size: calc(var(--u) * .95); padding: calc(var(--u) * .4) calc(var(--u) * .9); }
+    .next { margin-top: calc(var(--u) * 1.1); padding: calc(var(--u) * .8) calc(var(--u) * 1.1); }
+    .next-team { font-size: calc(var(--u) * 1.15); }
+    .standings { font-size: calc(var(--u) * 1.25); }
+    .st-list { flex: 1; min-height: 0; grid-template-rows: repeat(10, minmax(0, 1fr)); gap: calc(var(--u) * .45); }
+    .st-row { padding: 0 .7em; border-radius: calc(var(--u) * .8); }
+    .progress { font-size: calc(var(--u) * 1); }
+    .bar { height: calc(var(--u) * .7); }
+    .legend { font-size: calc(var(--u) * .95); }
+    .event-line { font-size: calc(var(--u) * .9); }
+  }
+  @media (max-width: 560px) {
+    .robots { grid-template-columns: 1fr; }
+    .robot { min-height: 0; flex-direction: row; align-items: center; }
+    .robot-score { flex-direction: column; align-items: flex-end; gap: 2px; }
+    .robot-score b { font-size: 40px; }
+    .robot .crown { font-size: 9px; padding: 3px 7px; }
+    .clock-card { width: 100%; justify-content: space-between; }
+    .d-title { font-size: 26px; }
+    .st-head, .st-row { grid-template-columns: 2.4em minmax(0, 1fr) 3em 3.6em 2.2em; gap: .5em; }
+  }
+
+  /* ---------- winner celebration: robot drops in and announces the match winner ---------- */
+  .win-fx {
+    position: fixed; inset: 0; z-index: 50; overflow: hidden;
+    display: grid; place-items: center;
+    padding: calc(24px + var(--safe-t)) 16px calc(40px + var(--safe-b));
+    background: radial-gradient(ellipse at 50% 45%, rgba(18, 44, 98, .93), rgba(4, 10, 26, .97) 72%);
+    animation: wfxIn .4s ease-out both;
+  }
+  .win-fx.out { animation: wfxOut .55s ease-in forwards; }
+  @keyframes wfxIn { from { opacity: 0; } }
+  @keyframes wfxOut { to { opacity: 0; transform: scale(1.04); } }
+
+  .wfx-rays {
+    position: absolute; left: 50%; top: 50%; width: 170vmax; height: 170vmax; margin: -85vmax 0 0 -85vmax;
+    background: repeating-conic-gradient(rgba(255, 204, 47, .11) 0 7deg, transparent 7deg 18deg);
+    -webkit-mask-image: radial-gradient(circle, #000 0, transparent 52%); mask-image: radial-gradient(circle, #000 0, transparent 52%);
+    animation: wfxSpin 50s linear infinite;
+  }
+  @keyframes wfxSpin { to { transform: rotate(360deg); } }
+  .wfx-flash { position: absolute; inset: 0; opacity: 0; background: radial-gradient(circle at 50% 55%, rgba(255, 230, 150, .5), transparent 60%); animation: wfxFlash 1s ease-out .62s both; }
+  @keyframes wfxFlash { 0% { opacity: 0; } 18% { opacity: 1; } 100% { opacity: 0; } }
+
+  .wfx-confetti { position: absolute; inset: 0; pointer-events: none; perspective: 600px; }
+  .wfx-bit {
+    position: absolute; top: -5vh; left: var(--x); opacity: 0;
+    width: max(7px, calc(var(--w) * 1vmin)); height: max(3px, calc(var(--w) * .45vmin));
+    background: var(--bc); border-radius: 2px;
+    animation: wfxFall var(--t) cubic-bezier(.3, .4, .6, 1) var(--d) forwards;
+  }
+  .wfx-bit.round { height: max(7px, calc(var(--w) * 1vmin)); border-radius: 50%; }
+  @keyframes wfxFall {
+    0% { opacity: 1; transform: translate(0, 0) rotate(0) rotateX(0); }
+    100% { opacity: 1; transform: translate(var(--dx), 112vh) rotate(var(--r)) rotateX(900deg); }
+  }
+
+  .wfx-stage { position: relative; display: flex; flex-direction: column; align-items: center; gap: clamp(18px, 3.4vmin, 48px); max-width: 100%; }
+  .wfx-bots { --bot: min(34vh, calc(76vw / var(--n, 1))); position: relative; display: flex; align-items: flex-end; justify-content: center; gap: 2vmin; flex: none; }
+  .win-bot {
+    height: var(--bot); width: auto; aspect-ratio: 240 / 260; overflow: visible; flex: none;
+    transform-origin: 50% 100%;
+    animation: wfxDrop 1.05s calc(.1s + var(--i) * .18s) both;
+  }
+  @keyframes wfxDrop {
+    0% { transform: translateY(-125vh); animation-timing-function: cubic-bezier(.55, 0, 1, .45); }
+    55% { transform: translateY(0) scale(1.12, .84); animation-timing-function: ease-out; }
+    72% { transform: translateY(-9%) scale(.95, 1.06); animation-timing-function: ease-in; }
+    86% { transform: translateY(0) scale(1.04, .96); }
+    100% { transform: none; }
+  }
+  .wr-paint { fill: var(--c); }
+  .wr-shade { fill: color-mix(in srgb, var(--c) 60%, #0a1834); }
+  .wr-edge { stroke: #0a1834; stroke-width: 4; stroke-linejoin: round; }
+  .wr-bob { animation: wrBob 1.1s ease-in-out 1.15s infinite; }
+  @keyframes wrBob { 50% { transform: translateY(-9px); } }
+  .wr-shadow { transform-box: fill-box; transform-origin: center; animation: wrShadow 1.1s ease-in-out 1.15s infinite; }
+  @keyframes wrShadow { 50% { transform: scaleX(.82); opacity: .55; } }
+  .wr-arm-l { transform-box: view-box; transform-origin: 64px 136px; transform: rotate(-28deg); animation: wrWave .42s ease-in-out .9s infinite alternate; }
+  @keyframes wrWave { from { transform: rotate(-44deg); } to { transform: rotate(-12deg); } }
+  .wr-arm-r { transform-box: view-box; transform-origin: 156px 136px; transform: rotate(22deg); animation: wrPump .8s ease-in-out .9s infinite alternate; }
+  @keyframes wrPump { from { transform: rotate(10deg); } to { transform: rotate(30deg); } }
+  .wr-eyes { transform-box: fill-box; transform-origin: center; animation: wrBlink 3.2s 1.6s infinite; }
+  @keyframes wrBlink { 0%, 88%, 100% { transform: none; } 92% { transform: scaleY(.1); } }
+  .wr-ant { animation: wrAnt .8s steps(1, end) infinite; }
+  .wr-halo { animation: wrHalo .8s ease-out infinite; transform-box: fill-box; transform-origin: center; }
+  @keyframes wrAnt { 50% { fill: #fff6cf; } }
+  @keyframes wrHalo { from { transform: scale(.6); opacity: .9; } to { transform: scale(2.2); opacity: 0; } }
+  .wr-wheel { transform-box: fill-box; transform-origin: center; animation: wfxSpin .9s linear infinite; }
+  .wr-led { animation: wrLed 1.2s infinite; }
+  @keyframes wrLed { 0%, 60%, 100% { fill: #1b3563; } 20% { fill: var(--gold); } }
+
+  .wfx-spark { position: absolute; left: var(--sx); top: var(--sy); color: var(--gold); font-size: clamp(16px, 3.4vmin, 44px); line-height: 1; opacity: 0; animation: wfxTwinkle 1.6s ease-in-out var(--sd) infinite; }
+  @keyframes wfxTwinkle { 0%, 100% { opacity: 0; transform: scale(.3) rotate(0); } 50% { opacity: 1; transform: scale(1) rotate(90deg); } }
+
+  .wfx-say {
+    position: relative; min-width: 0; max-width: min(780px, 92vw); text-align: center;
+    padding: clamp(22px, 3.4vmin, 44px) clamp(24px, 4.4vmin, 60px);
+    border-radius: clamp(20px, 3vmin, 40px);
+    background: #102756; border: 4px solid var(--gold);
+    box-shadow: 0 0 0 clamp(6px, 1vmin, 14px) rgba(255, 204, 47, .14), 0 30px 90px -20px rgba(0, 0, 0, .8), inset 0 2px 0 rgba(255, 255, 255, .08);
+    transform-origin: 50% 0;
+    animation: wfxPop .6s cubic-bezier(.2, 1.5, .4, 1) .95s both;
+  }
+  .wfx-say::before {
+    content: ''; position: absolute; width: 30px; height: 30px;
+    top: -17px; left: calc(50% - 15px); transform: rotate(45deg);
+    background: #102756; border: 4px solid var(--gold); border-right: 0; border-bottom: 0; border-top-left-radius: 4px;
+  }
+  @keyframes wfxPop { from { opacity: 0; transform: scale(.25); } }
+  .wfx-say > div { animation: wfxRise .5s ease-out var(--rd, 0s) both; }
+  .wfx-kicker { font-family: var(--font-display); font-weight: 800; font-size: clamp(18px, 3.8vmin, 52px); line-height: 1; letter-spacing: .14em; text-transform: uppercase; color: var(--gold); --rd: 1.15s; }
+  .wfx-team {
+    margin-top: .12em; font-family: var(--font-display); font-weight: 800; font-size: clamp(32px, 8vmin, 116px); line-height: .98; text-transform: uppercase;
+    overflow: hidden; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; word-break: break-word;
+    --rd: 1.3s;
+  }
+  .wfx-team i { font-style: normal; color: var(--gold); }
+  .wfx-match { margin-top: .25em; font-family: var(--font-display); font-weight: 700; font-size: clamp(20px, 4.4vmin, 62px); line-height: 1; text-transform: uppercase; color: #c4d5f2; --rd: 1.45s; }
+  .wfx-match b { color: var(--gold); }
+  .wfx-meta { display: inline-flex; align-items: center; gap: .5em; margin-top: 1em; padding: .4em 1em; border-radius: 999px; background: rgba(255, 255, 255, .06); font-weight: 800; font-size: clamp(12px, 1.9vmin, 26px); letter-spacing: .08em; text-transform: uppercase; color: var(--muted); --rd: 1.6s; }
+  .wfx-meta .dot { width: .8em; height: .8em; }
+  @keyframes wfxRise { from { opacity: 0; transform: translateY(14px); } }
+
+  .wfx-hint { position: absolute; left: 0; right: 0; bottom: calc(14px + var(--safe-b)); text-align: center; font-size: 12px; font-weight: 700; letter-spacing: .1em; text-transform: uppercase; color: var(--muted-2); transition: opacity .4s; }
+  body.idle .wfx-hint { opacity: 0; }
+  .wfx-timer { position: absolute; left: 0; bottom: 0; width: 100%; height: 4px; background: linear-gradient(90deg, var(--gold), #ffe27a); transform-origin: 0 50%; animation: wfxTimer var(--ms) linear forwards; }
+  @keyframes wfxTimer { to { transform: scaleX(0); } }
+
+  /* Landscape screens (projector): robot on the left, speech bubble on the right */
+  @media (orientation: landscape) and (min-width: 700px) {
+    .wfx-stage { flex-direction: row; }
+    .wfx-bots { --bot: min(56vh, calc(36vw / var(--n, 1))); }
+    .wfx-say { text-align: left; transform-origin: 0 50%; max-width: min(1000px, 54vw); }
+    .wfx-kicker { font-size: 5vmin; }
+    .wfx-team { font-size: 11vmin; }
+    .wfx-match { font-size: 5.6vmin; }
+    .wfx-meta { font-size: 2.2vmin; }
+    .wfx-say::before { top: calc(50% - 15px); left: -17px; transform: rotate(-45deg); }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .win-fx, .win-fx * { animation: none !important; }
+    .wfx-confetti, .wfx-flash, .wfx-spark, .wfx-timer { display: none; }
+  }
+</style>
+</head>
+<body>
+<div class="board" id="board">
+  <header class="d-head">
+    <img class="d-logo" src="assets/logo-light.png" alt="GRC logo">
+    <div class="d-titles">
+      <div class="eyebrow" id="evOrg">Genius Robotics Challenge</div>
+      <div class="d-title" id="evTitle">Resource Recovery <span>Live</span></div>
+    </div>
+    <span class="conn" id="conn" data-state="connecting"><i></i><span>Connecting…</span></span>
+    <div class="clock-card" id="clockCard">
+      <div><small id="clockLabel">Match clock</small><b id="clock">03:00</b></div>
+    </div>
+  </header>
+
+  <main class="d-main">
+    <section class="d-panel now">
+      <div class="now-head">
+        <div>
+          <div class="d-label">Now playing</div>
+          <div class="now-title" id="nowTitle">Match 1<small>of 15</small></div>
+        </div>
+        <span class="phase" id="phase" data-k="ondeck">On deck</span>
+      </div>
+      <div class="robots" id="robots"></div>
+      <div class="next" id="next"></div>
+    </section>
+
+    <section class="d-panel standings">
+      <div class="row" style="margin-bottom:10px">
+        <div class="d-label">Tournament standings</div>
+        <span class="pill" id="doneCount">0 / 15 played</span>
+      </div>
+      <div class="st-head"><span>#</span><span>Team</span><span class="r">Played</span><span class="r">Points</span><span></span></div>
+      <div class="st-list" id="standings"></div>
+    </section>
+  </main>
+
+  <footer class="d-foot">
+    <div class="progress"><span id="progressText">0 of 15 matches complete</span><div class="bar"><i id="progressBar"></i></div></div>
+    <div class="foot-row">
+      <div class="legend">
+        <span><i class="dot" style="--c:var(--c-red)"></i>Red · Metals</span>
+        <span><i class="dot" style="--c:var(--c-blue)"></i>Blue · Plastics</span>
+        <span><i class="dot" style="--c:var(--c-green)"></i>Green · Glass</span>
+        <span><i class="dot" style="--c:var(--c-yellow)"></i>Yellow · Paper</span>
+      </div>
+      <div class="event-line" id="eventLine"></div>
+    </div>
+  </footer>
+</div>
+
+<div class="fab">
+  <button class="btn small" type="button" id="fullBtn" title="Fullscreen (F)">⛶ Fullscreen</button>
+</div>
+<div class="banner error error-overlay hidden" id="errorBox" style="border-radius:12px"></div>
+<div class="win-fx hidden" id="winFx" role="status" aria-live="assertive"></div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.117.3/dist/umd/supabase.js"></script>
+<script src="assets/config.js"></script>
+<script src="assets/app.js"></script>
+<script>
+(function () {
+  'use strict';
+  const G = window.GRC, $ = G.$, esc = G.esc;
+  let d = null;
+  let lastMatch = null, lastScoresSig = '';
+  let lastTotals = new Map();
+
+  // ------------------------------------------------------------ event text
+  const E = G.EVENT;
+  $('evOrg').textContent = E.org;
+  $('evTitle').innerHTML = esc(E.title) + ' <span>Live</span>';
+  $('eventLine').textContent = [E.tagline, E.date, E.time, E.venue].filter(Boolean).join(' · ');
+  document.title = E.title + ' · Live Board';
+
+  // ------------------------------------------------------------ status
+  G.on('status', s => {
+    const c = $('conn');
+    c.dataset.state = s.state;
+    c.querySelector('span').textContent = s.state === 'live' ? 'Live' : s.label;
+    const box = $('errorBox');
+    box.classList.toggle('hidden', !(s.state === 'offline' && s.message));
+    box.textContent = s.message || '';
+  });
+
+  // ------------------------------------------------------------ render
+  G.on('data', nd => { d = nd; render(); tick(); checkWinners(); });
+
+  function render() {
+    const cur = d.state.current_match;
+    const m = d.matches[cur - 1];
+    const done = G.scoredCount(d);
+
+    $('nowTitle').innerHTML = 'Match ' + cur + '<small>of ' + G.MATCH_COUNT + '</small>';
+
+    // Robot cards
+    const sig = cur + '|' + JSON.stringify(m.scores);
+    const reveal = m.scores && lastMatch === cur && sig !== lastScoresSig;
+    const top = m.scores ? Math.max.apply(null, m.scores) : null;
+    $('robots').innerHTML = m.team_ids.map((t, j) => {
+      const c = G.COLORS[m.colors[j]];
+      const win = m.scores && m.scores[j] === top && top > 0;
+      const label = win ? '<span class="crown">★ Match winner</span>' : m.scores ? '<em>points</em>' : '<em>&nbsp;</em>';
+      return `<div class="robot${win ? ' winner' : ''}${reveal ? ' pop' : ''}" style="--c:${c.hex}">
+        <div class="robot-meta">
+          <div class="robot-tag"><span class="dot"></span>${c.name} robot · ${c.material}</div>
+          <div class="robot-team">${esc(G.teamName(d, t))}</div>
+        </div>
+        <div class="robot-score">${m.scores ? `<b>${m.scores[j]}</b>` : '<b class="empty">—</b>'}${label}</div>
+      </div>`;
+    }).join('');
+    lastMatch = cur;
+    lastScoresSig = sig;
+
+    // Up next
+    const nx = d.matches[cur];
+    $('next').innerHTML = nx
+      ? `<span class="d-label">Up next · Match ${nx.id}</span>` + nx.team_ids.map((t, j) =>
+          `<span class="next-team"><i class="dot" style="--c:${G.COLORS[nx.colors[j]].hex}"></i><span>${esc(G.teamName(d, t))}</span></span>`).join('')
+      : `<span class="d-label">Final match of the qualifying round</span>`;
+
+    renderStandings(done);
+
+    $('doneCount').textContent = done + ' / ' + G.MATCH_COUNT + ' played';
+    $('progressText').textContent = done + ' of ' + G.MATCH_COUNT + ' matches complete';
+    $('progressBar').style.width = (done / G.MATCH_COUNT * 100) + '%';
+  }
+
+  function renderStandings(done) {
+    const list = $('standings');
+    const rows = G.standingsWithMovement(d);
+    // FLIP: remember where each row was so re-ordering slides smoothly
+    const before = new Map();
+    list.querySelectorAll('[data-id]').forEach(el => before.set(el.dataset.id, el.getBoundingClientRect().top));
+
+    list.innerHTML = rows.map(r => {
+      const cls = done && r.rank <= 3 ? ' r' + r.rank : '';
+      const mv = !r.move ? '<span class="st-move same">–</span>'
+        : r.move > 0 ? `<span class="st-move up">▲${r.move}</span>` : `<span class="st-move down">▼${-r.move}</span>`;
+      return `<div class="st-row${done && r.rank === 1 ? ' top1' : ''}" data-id="${r.id}">
+        <span class="rank${cls}">${r.rank}</span>
+        <span class="st-team">${esc(r.team)}</span>
+        <span class="st-played r">${r.played}/${r.scheduled}</span>
+        <span class="st-pts r">${r.total}</span>
+        ${mv}
+      </div>`;
+    }).join('');
+
+    list.querySelectorAll('[data-id]').forEach(el => {
+      const id = el.dataset.id;
+      const r = rows.find(x => String(x.id) === id);
+      const prevTop = before.get(id);
+      if (prevTop != null && el.animate) {
+        const dy = prevTop - el.getBoundingClientRect().top;
+        if (Math.abs(dy) > 1) el.animate([{ transform: `translateY(${dy}px)` }, { transform: 'none' }], { duration: 900, easing: 'cubic-bezier(.2,.8,.2,1)' });
+      }
+      if (lastTotals.has(r.id) && lastTotals.get(r.id) !== r.total) el.classList.add('flash');
+    });
+    lastTotals = new Map(rows.map(r => [r.id, r.total]));
+  }
+
+  // ------------------------------------------------------------ winner celebration
+  // A robot in the winning robot's colour drops in and announces "Winner: <team> in Match <n>".
+  // Plays when a match result comes in (or a correction changes who won), never on page load.
+  const WIN_MS = 9000;
+  const winFx = $('winFx');
+  let winSeen = null, winTimer = 0, winOutTimer = 0;
+
+  function matchWinners(m) {
+    if (!m.scores) return null;
+    const top = Math.max.apply(null, m.scores);
+    if (!(top > 0)) return null;                       // same rule as the "Match winner" badge
+    return { top, slots: m.scores.map((v, j) => v === top ? j : -1).filter(j => j >= 0) };
+  }
+
+  function checkWinners() {
+    const now = new Map(d.matches.map(m => {
+      const w = matchWinners(m);
+      return [m.id, w ? w.slots.map(j => m.team_ids[j]).join(',') : ''];
+    }));
+    if (winSeen) {
+      const fresh = d.matches.filter(m => now.get(m.id) && now.get(m.id) !== winSeen.get(m.id));
+      // One match = a result just came in. Several at once = a backup was restored, so stay quiet.
+      if (fresh.length === 1) celebrate(fresh[0]);
+    }
+    winSeen = now;
+  }
+
+  function robotSvg(c, i) {
+    return `<svg class="win-bot" viewBox="-10 0 240 260" style="--c:${c.hex};--i:${i}" aria-hidden="true">
+      <ellipse class="wr-shadow" cx="110" cy="248" rx="62" ry="8" fill="rgba(0,0,0,.45)"/>
+      <g class="wr-bob">
+        <g class="wr-arm-l">
+          <rect class="wr-shade wr-edge" x="56" y="84" width="16" height="58" rx="8"/>
+          <circle class="wr-paint wr-edge" cx="64" cy="82" r="11"/>
+        </g>
+        <g class="wr-arm-r">
+          <rect class="wr-shade wr-edge" x="148" y="84" width="16" height="58" rx="8"/>
+          <path d="M143 48h-7a7 7 0 0 0 8 10M169 48h7a7 7 0 0 1-8 10" fill="none" stroke="#ffcc2f" stroke-width="3.5"/>
+          <path d="M142 42H170V50A14 14 0 0 1 142 50Z" fill="#ffcc2f" stroke="#a87b00" stroke-width="2"/>
+          <rect x="153" y="62" width="6" height="9" fill="#e0a800"/>
+          <rect x="145" y="70" width="22" height="6" rx="2" fill="#ffcc2f" stroke="#a87b00" stroke-width="2"/>
+          <circle class="wr-paint wr-edge" cx="156" cy="84" r="11"/>
+        </g>
+        <line x1="110" y1="44" x2="110" y2="22" stroke="#c9d6ee" stroke-width="5" stroke-linecap="round"/>
+        <circle class="wr-halo" cx="110" cy="15" r="9" fill="rgba(255,204,47,.6)"/>
+        <circle class="wr-ant" cx="110" cy="15" r="9" fill="#ffcc2f"/>
+        <rect x="49" y="63" width="13" height="28" rx="5" fill="#c9d6ee" stroke="#0a1834" stroke-width="3"/>
+        <rect x="158" y="63" width="13" height="28" rx="5" fill="#c9d6ee" stroke="#0a1834" stroke-width="3"/>
+        <rect class="wr-paint wr-edge" x="60" y="42" width="100" height="70" rx="22"/>
+        <rect x="70" y="55" width="80" height="38" rx="15" fill="#0a1834"/>
+        <g class="wr-eyes">
+          <ellipse cx="92" cy="74" rx="8" ry="9.5" fill="#eafcff"/>
+          <ellipse cx="128" cy="74" rx="8" ry="9.5" fill="#eafcff"/>
+          <circle cx="95" cy="70" r="2.6" fill="#0a1834"/>
+          <circle cx="131" cy="70" r="2.6" fill="#0a1834"/>
+        </g>
+        <path d="M96 100Q110 109 124 100" fill="none" stroke="#0a1834" stroke-width="4" stroke-linecap="round"/>
+        <rect x="98" y="110" width="24" height="12" fill="#8fa3c6" stroke="#0a1834" stroke-width="3"/>
+        <rect class="wr-paint wr-edge" x="64" y="120" width="92" height="78" rx="16"/>
+        <rect x="82" y="133" width="56" height="35" rx="8" fill="#0a1834"/>
+        <polygon points="110,140 112.7,147.3 120.5,147.6 114.4,152.4 116.5,159.9 110,155.6 103.5,159.9 105.6,152.4 99.5,147.6 107.3,147.3" fill="#ffcc2f"/>
+        <circle class="wr-led" cx="94" cy="182" r="4.5"/>
+        <circle class="wr-led" cx="110" cy="182" r="4.5" style="animation-delay:.4s"/>
+        <circle class="wr-led" cx="126" cy="182" r="4.5" style="animation-delay:.8s"/>
+        <rect x="54" y="196" width="112" height="42" rx="21" fill="#22385f" stroke="#0a1834" stroke-width="4"/>
+        ${[78, 110, 142].map(x => `<g class="wr-wheel"><circle cx="${x}" cy="217" r="12.5" fill="#9fb3d6" stroke="#0a1834" stroke-width="3"/><path d="M${x - 8} 217h16M${x} 209v16" stroke="#0a1834" stroke-width="3" stroke-linecap="round"/></g>`).join('')}
+      </g>
+    </svg>`;
+  }
+
+  function confettiHtml() {
+    const palette = G.COLORS.map(c => c.hex).concat(['#ffcc2f', '#ffffff', '#ffe17d']);
+    let html = '';
+    for (let i = 0; i < 90; i++) {
+      const r = Math.random;
+      html += `<i class="wfx-bit${i % 3 ? '' : ' round'}" style="--x:${(r() * 100).toFixed(1)}%;--w:${(.9 + r() * 1.1).toFixed(2)};--bc:${palette[i % palette.length]};` +
+        `--d:${(.7 + r() * 2.6).toFixed(2)}s;--t:${(2.8 + r() * 2.4).toFixed(2)}s;--dx:${((r() - .5) * 30).toFixed(1)}vw;--r:${Math.round((r() - .5) * 1440)}deg"></i>`;
+    }
+    return html;
+  }
+
+  function celebrate(m) {
+    const w = matchWinners(m);
+    const teams = w.slots.map(j => esc(G.teamName(d, m.team_ids[j])));
+    const cols = w.slots.map(j => G.COLORS[m.colors[j]]);
+    const many = cols.length > 1;
+    clearTimeout(winTimer);
+    clearTimeout(winOutTimer);
+    winFx.innerHTML = `
+      <div class="wfx-rays"></div>
+      <div class="wfx-flash"></div>
+      <div class="wfx-confetti">${confettiHtml()}</div>
+      <div class="wfx-stage">
+        <div class="wfx-bots" style="--n:${cols.length}">
+          ${cols.map(robotSvg).join('')}
+          <span class="wfx-spark" style="--sx:-6%;--sy:8%;--sd:1.3s">✦</span>
+          <span class="wfx-spark" style="--sx:96%;--sy:2%;--sd:1.7s">✦</span>
+          <span class="wfx-spark" style="--sx:-2%;--sy:60%;--sd:2.1s">✦</span>
+          <span class="wfx-spark" style="--sx:92%;--sy:52%;--sd:1.5s">✦</span>
+        </div>
+        <div class="wfx-say">
+          <div class="wfx-kicker">${many ? 'Winners' : 'Winner'}:</div>
+          <div class="wfx-team">${teams.join(' <i>&amp;</i> ')}</div>
+          <div class="wfx-match">in Match <b>${m.id}</b></div>
+          <div class="wfx-meta">${cols.map(c => `<i class="dot" style="--c:${c.hex}"></i>`).join('')}${cols.map(c => c.name).join(' & ')} robot${many ? 's' : ''} · ${w.top} points</div>
+        </div>
+      </div>
+      <div class="wfx-hint">Click or press Esc to close</div>
+      <i class="wfx-timer" style="--ms:${WIN_MS}ms"></i>`;
+    winFx.classList.remove('hidden', 'out');
+    winTimer = setTimeout(hideWin, WIN_MS);
+  }
+
+  function hideWin() {
+    if (winFx.classList.contains('hidden') || winFx.classList.contains('out')) return;
+    clearTimeout(winTimer);
+    winFx.classList.add('out');
+    winOutTimer = setTimeout(() => { winFx.classList.add('hidden'); winFx.classList.remove('out'); winFx.innerHTML = ''; }, 550);
+  }
+  winFx.addEventListener('click', hideWin);
+  winFx.addEventListener('dblclick', e => e.stopPropagation());   // don't toggle fullscreen while closing it
+  document.addEventListener('keydown', e => { if (e.key === 'Escape') hideWin(); });
+
+  // ------------------------------------------------------------ clock + phase (every frame, synced to server time)
+  const clockEl = $('clock'), card = $('clockCard'), label = $('clockLabel'), phaseEl = $('phase');
+  let lastTxt = '';
+  function tick() {
+    if (d) {
+      const rem = G.clockRemaining(d);
+      const txt = G.formatTime(rem);
+      if (txt !== lastTxt) { clockEl.textContent = txt; lastTxt = txt; }
+      const running = d.state.clock_running && rem > 0;
+      card.classList.toggle('running', running);
+      card.classList.toggle('danger', running && rem <= 20000);
+      card.classList.toggle('done', rem <= 0);
+      const lbl = rem <= 0 ? "Time's up!" : running ? 'Match clock' : rem < d.state.clock_duration_ms ? 'Clock paused' : 'Match clock';
+      if (label.textContent !== lbl) label.textContent = lbl;
+      const p = G.matchPhase(d, d.state.current_match);
+      if (phaseEl.dataset.k !== p.key) { phaseEl.dataset.k = p.key; phaseEl.textContent = p.label; }
+    }
+  }
+  setInterval(tick, 200);   // keeps running even if the tab is in the background
+
+  // ------------------------------------------------------------ fullscreen, idle cursor, wake lock
+  const fsSupported = !!(document.documentElement.requestFullscreen || document.documentElement.webkitRequestFullscreen);
+  if (!fsSupported) $('fullBtn').classList.add('hidden');
+  function toggleFullscreen() {
+    const el = document.documentElement;
+    if (document.fullscreenElement || document.webkitFullscreenElement) {
+      (document.exitFullscreen || document.webkitExitFullscreen).call(document);
+    } else {
+      const req = el.requestFullscreen || el.webkitRequestFullscreen;
+      if (req) Promise.resolve(req.call(el)).catch(() => {});
+    }
+  }
+  $('fullBtn').onclick = toggleFullscreen;
+  document.addEventListener('keydown', e => { if (e.key === 'f' || e.key === 'F') toggleFullscreen(); });
+  document.addEventListener('dblclick', toggleFullscreen);
+
+  let idleT;
+  const wakeUi = () => {
+    document.body.classList.remove('idle');
+    clearTimeout(idleT);
+    idleT = setTimeout(() => document.body.classList.add('idle'), 3000);
+  };
+  ['mousemove', 'pointerdown', 'keydown'].forEach(ev => document.addEventListener(ev, wakeUi, { passive: true }));
+  wakeUi();
+
+  G.keepAwake();
+  G.start();
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,940 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#071330">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="GRC Control">
+<title>GRC Tournament Control</title>
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" type="image/png" href="assets/favicon.png">
+<link rel="apple-touch-icon" href="assets/apple-touch-icon.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700;800&family=Inter:wght@400;600;700;800;900&display=swap">
+<link rel="stylesheet" href="assets/style.css">
+<style>
+  /* ---------- shell ---------- */
+  .topbar {
+    position: sticky; top: 0; z-index: 30;
+    display: flex; align-items: center; justify-content: space-between; gap: 10px;
+    padding: calc(10px + var(--safe-t)) 16px 10px;
+    background: rgba(6, 15, 36, .84);
+    -webkit-backdrop-filter: blur(14px); backdrop-filter: blur(14px);
+    border-bottom: 1px solid var(--line-soft);
+  }
+  .top-actions { display: flex; align-items: center; gap: 8px; flex: 0 0 auto; }
+  .wrap { max-width: 1440px; margin: 0 auto; padding: 16px 16px 40px; }
+  body.has-tabbar .wrap { padding-bottom: calc(100px + var(--safe-b)); }
+  .view { display: none; }
+  .view.on { display: block; animation: fadein .18s ease-out; }
+  @keyframes fadein { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: none; } }
+
+  /* ---------- tab bar: bottom on phone/tablet, top tabs on desktop ---------- */
+  .tabbar {
+    position: fixed; left: 0; right: 0; bottom: 0; z-index: 40;
+    display: grid; grid-template-columns: repeat(4, 1fr); gap: 4px;
+    padding: 6px 8px calc(6px + var(--safe-b));
+    background: rgba(7, 18, 42, .95);
+    -webkit-backdrop-filter: blur(14px); backdrop-filter: blur(14px);
+    border-top: 1px solid var(--line);
+  }
+  .tab {
+    display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px;
+    min-height: 54px; padding: 6px 4px;
+    background: none; border: 0; border-radius: 12px;
+    color: var(--muted); font-size: 11px; font-weight: 800; letter-spacing: .03em;
+  }
+  .tab svg { width: 24px; height: 24px; }
+  .tab.on { color: var(--gold); background: rgba(255, 204, 47, .1); }
+  @media (min-width: 1024px) {
+    .tabbar {
+      position: static; display: flex; gap: 8px;
+      max-width: 1440px; margin: 0 auto; padding: 16px 16px 0;
+      background: none; border: 0; -webkit-backdrop-filter: none; backdrop-filter: none;
+    }
+    .tab { flex-direction: row; gap: 8px; min-height: 44px; padding: 10px 18px; font-size: 14px; background: #10264d; color: #b7c9e6; }
+    .tab svg { width: 18px; height: 18px; }
+    .tab.on { background: var(--gold); color: var(--gold-ink); }
+    body.has-tabbar .wrap { padding-bottom: 40px; }
+  }
+  @media (max-width: 1023px) { body.has-tabbar .toast { bottom: calc(92px + var(--safe-b)); } }
+  @media (max-width: 599px) { .hide-phone { display: none !important; } .brand-logo { width: 40px; height: 40px; flex-basis: 40px; } .brand-title { font-size: 20px; } }
+  @media (max-width: 380px) { .conn span { display: none; } .conn { padding: 8px; } }
+
+  /* ---------- score view ---------- */
+  .score-grid { display: grid; grid-template-columns: minmax(0, 1fr); gap: 16px; }
+  .panel { min-width: 0; }
+  .desktop-only { display: none; }
+  @media (min-width: 1024px) {
+    .score-grid { grid-template-columns: minmax(0, 1fr) 390px; align-items: start; }
+    .desktop-only { display: block; }
+    .side-standings { position: sticky; top: 92px; }
+  }
+
+  .live-card { display: grid; gap: 16px; }
+  @media (min-width: 640px) { .live-card { grid-template-columns: auto 1fr; align-items: end; gap: 28px; } }
+  .live-match { display: flex; align-items: center; gap: 10px; }
+  .live-match .btn.icon { width: 48px; min-height: 48px; font-size: 24px; }
+  .live-match b { display: block; font-family: var(--font-display); font-size: 38px; line-height: 1; text-transform: uppercase; white-space: nowrap; }
+  .live-match small { display: block; color: var(--muted); font-weight: 700; font-size: 13px; margin-top: 3px; white-space: nowrap; }
+  .btn.nudge { border-color: var(--gold); box-shadow: 0 0 0 0 rgba(255, 204, 47, .6); animation: nudge 1.8s infinite; }
+  @keyframes nudge { 0% { box-shadow: 0 0 0 0 rgba(255, 204, 47, .55); } 70% { box-shadow: 0 0 0 10px rgba(255, 204, 47, 0); } 100% { box-shadow: 0 0 0 0 rgba(255, 204, 47, 0); } }
+  .clock-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+  .clock { font-family: var(--font-display); font-weight: 800; font-size: 58px; line-height: .95; font-variant-numeric: tabular-nums; letter-spacing: .02em; }
+  .clock.danger { color: var(--red); }
+  .clock.done { color: var(--red); animation: blink 1s steps(2, start) infinite; }
+  @keyframes blink { to { opacity: .35; } }
+  .clock-btns { display: flex; gap: 8px; flex-wrap: wrap; }
+  .clock-btns .btn { min-width: 84px; }
+  @media (max-width: 639px) {
+    .live-card { gap: 12px; }
+    .live-match { justify-content: space-between; }
+    .live-match > div { flex: 1; text-align: center; }
+    .live-match b { font-size: 34px; }
+    .clock-row { flex-wrap: nowrap; }
+    .clock { font-size: 50px; }
+    .clock-btns { flex-wrap: nowrap; }
+    .clock-btns .btn { min-width: 46px; min-height: 46px; }
+    .clock-btns #clockStart { min-width: 92px; }
+  }
+  @media (max-width: 449px) { .btn-txt { display: none; } }
+
+  .chips {
+    display: flex; gap: 8px;
+    overflow-x: auto; -webkit-overflow-scrolling: touch; scrollbar-width: none;
+    margin: 14px -18px 4px; padding: 4px 18px 10px;
+    scroll-padding: 0 18px;
+  }
+  .chips::-webkit-scrollbar { display: none; }
+  @media (min-width: 1024px) { .chips { flex-wrap: wrap; overflow: visible; margin: 14px 0 4px; padding: 4px 0 8px; } }
+  .chip {
+    position: relative; flex: 0 0 auto;
+    min-width: 48px; height: 48px; padding: 0 6px;
+    border-radius: 12px; border: 1px solid #2e4f80; background: #0b1c3d;
+    font-weight: 900; font-size: 16px; color: #cfe0ff;
+  }
+  .chip.done { background: rgba(41, 199, 132, .14); border-color: rgba(41, 199, 132, .55); color: #a6f5cf; }
+  .chip.sel { outline: 3px solid var(--gold); outline-offset: 1px; color: #fff; }
+  .chip.live::after { content: ''; position: absolute; top: 5px; right: 5px; width: 8px; height: 8px; border-radius: 50%; background: var(--gold); box-shadow: 0 0 8px var(--gold); }
+  .chips-legend { display: flex; gap: 14px; flex-wrap: wrap; font-size: 11px; color: var(--muted-2); margin-bottom: 6px; }
+  .chips-legend span { display: inline-flex; align-items: center; gap: 6px; }
+  .chips-legend i { width: 10px; height: 10px; border-radius: 3px; display: inline-block; }
+
+  .edit-head { display: flex; align-items: flex-end; justify-content: space-between; gap: 10px; flex-wrap: wrap; }
+  .edit-badges { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+
+  .score-cards { display: grid; gap: 10px; margin-top: 10px; }
+  @media (min-width: 640px) { .score-cards { grid-template-columns: 1fr 1fr; gap: 12px; } }
+  .score-card {
+    position: relative; overflow: hidden;
+    display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 4px 10px;
+    grid-template-areas: "tag tag" "team step";
+    padding: 11px 12px 12px 17px;
+    background: var(--panel-2); border: 1px solid #2b4875; border-radius: 14px;
+    transition: border-color .15s, background .15s;
+  }
+  .score-card::before { content: ''; position: absolute; left: 0; top: 0; bottom: 0; width: 6px; background: var(--c); }
+  .score-card.dirty { border-color: var(--gold); background: #10224a; }
+  .sc-meta { display: contents; }
+  .sc-robot { grid-area: tag; display: flex; align-items: center; gap: 7px; font-size: 10.5px; letter-spacing: .12em; font-weight: 900; text-transform: uppercase; color: var(--c); white-space: nowrap; }
+  .sc-team { grid-area: team; font-weight: 800; font-size: 17px; line-height: 1.2; overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; word-break: break-word; }
+  .stepper { grid-area: step; display: flex; align-items: stretch; gap: 6px; }
+  .stepper .step { width: 44px; min-height: 54px; padding: 0; font-size: 24px; font-weight: 600; background: #132a52; }
+  .score-input {
+    width: 86px; min-height: 54px; padding: 0 4px;
+    text-align: center; font-family: var(--font-display); font-size: 32px; font-weight: 800;
+    border-radius: 11px; border: 1px solid #3c5f8f; background: #050f26; color: #fff;
+    -moz-appearance: textfield; appearance: textfield;
+  }
+  .score-input::-webkit-outer-spin-button, .score-input::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+  .score-input:focus { outline: 3px solid var(--c); outline-offset: 0; border-color: transparent; }
+  .score-input::placeholder { color: #34507a; }
+  @media (min-width: 640px) {
+    .score-card { grid-template-columns: 1fr; grid-template-areas: "tag" "team" "step"; padding: 14px 14px 14px 20px; }
+    .stepper { margin-top: 6px; }
+    .score-input { flex: 1; width: auto; font-size: 38px; min-height: 60px; }
+    .stepper .step { width: 56px; min-height: 60px; }
+  }
+  @media (max-width: 359px) { .score-card { grid-template-columns: 1fr; grid-template-areas: "tag" "team" "step"; } .score-input { flex: 1; } }
+
+  .savebar {
+    position: sticky; bottom: calc(80px + var(--safe-b)); z-index: 5;
+    display: flex; align-items: center; justify-content: flex-end; gap: 10px;
+    margin-top: 14px; padding: 10px;
+    background: rgba(9, 22, 48, .94); -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px);
+    border: 1px solid var(--line); border-radius: 14px;
+  }
+  .savebar .btn.primary { flex: 1 1 auto; max-width: 280px; min-height: 50px; font-size: 15px; }
+  .savebar .dirty-flag { margin-right: auto; color: var(--gold); font-size: 12px; font-weight: 800; display: inline-flex; align-items: center; gap: 6px; }
+  .savebar .dirty-flag::before { content: ''; width: 8px; height: 8px; border-radius: 50%; background: var(--gold); }
+  @media (min-width: 1024px) { .savebar { position: static; background: none; border: 0; padding: 0; -webkit-backdrop-filter: none; backdrop-filter: none; } }
+  .linkish { background: none; border: 0; padding: 0; color: var(--gold); font-weight: 800; text-decoration: underline; }
+
+  /* ---------- standings ---------- */
+  .kpis { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; margin-bottom: 16px; }
+  @media (min-width: 900px) { .kpis { grid-template-columns: repeat(4, minmax(0, 1fr)); } }
+  .kpi { background: var(--panel-2); border: 1px solid var(--line); border-radius: 14px; padding: 14px; min-width: 0; }
+  .kpi small { display: block; color: var(--muted); font-size: 11px; font-weight: 800; letter-spacing: .1em; text-transform: uppercase; }
+  .kpi b { display: block; font-family: var(--font-display); font-size: 30px; line-height: 1.1; margin-top: 4px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .kpi span { display: block; color: var(--muted); font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .move { display: inline-block; min-width: 30px; font-size: 12px; font-weight: 900; }
+  .move.up { color: var(--green); } .move.down { color: var(--red); } .move.same { color: var(--muted-2); }
+  .team-cell small { display: block; color: var(--muted-2); font-weight: 600; font-size: 11px; }
+  @media (max-width: 480px) { .hide-xs { display: none; } table { font-size: 13px; } td, th { padding-left: 5px; padding-right: 5px; } }
+
+  /* ---------- matches ---------- */
+  .fixtures { display: grid; gap: 12px; margin-top: 16px; }
+  @media (min-width: 640px) { .fixtures { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+  @media (min-width: 1100px) { .fixtures { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+  .fixture { width: 100%; text-align: left; background: var(--panel-2); border: 1px solid #2a4570; border-radius: 14px; padding: 14px; transition: border-color .15s, transform .1s; }
+  .fixture:hover { border-color: var(--gold); }
+  .fixture:active { transform: scale(.99); }
+  .fixture.live { border-color: var(--gold); box-shadow: inset 0 0 0 1px var(--gold); }
+  .fx-top { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 10px; }
+  .fx-title { font-family: var(--font-display); font-weight: 800; font-size: 22px; text-transform: uppercase; line-height: 1; }
+  .fx-teams { display: grid; grid-template-columns: 1fr 1fr; gap: 9px 12px; }
+  .fx-team { display: flex; align-items: center; gap: 8px; font-size: 13px; font-weight: 700; min-width: 0; }
+  .fx-team .nm { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .fx-team .sc { font-weight: 900; color: var(--gold); font-variant-numeric: tabular-nums; }
+  .fx-team.win .nm::after { content: ' ★'; color: var(--gold); }
+
+  /* ---------- teams ---------- */
+  .teams-grid { display: grid; grid-template-columns: minmax(0, 1fr); gap: 16px; }
+  @media (min-width: 1024px) { .teams-grid { grid-template-columns: minmax(0, 1fr) 380px; align-items: start; } }
+  .roster { display: grid; gap: 10px; margin-top: 14px; }
+  @media (min-width: 640px) { .roster { grid-template-columns: 1fr 1fr; gap: 12px; } }
+  .roster-item { background: var(--panel-2); border: 1px solid var(--line); border-radius: 14px; padding: 12px; transition: border-color .15s; }
+  .roster-item.dirty { border-color: var(--gold); }
+  .roster-item label { display: flex; align-items: center; gap: 8px; font-size: 11px; font-weight: 800; letter-spacing: .1em; text-transform: uppercase; color: var(--muted); margin-bottom: 7px; }
+  .team-num { display: inline-grid; place-items: center; width: 24px; height: 24px; border-radius: 7px; background: #203d69; color: #fff; font-size: 12px; letter-spacing: 0; }
+  .plays { font-size: 12px; color: var(--muted-2); margin-top: 7px; }
+  .tool-list { display: grid; gap: 10px; }
+  .tool-list .btn { justify-content: flex-start; }
+  .link-row { display: flex; gap: 8px; align-items: center; }
+  .link-row code { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 12px; background: #071631; border: 1px solid var(--line); border-radius: 9px; padding: 9px 10px; color: #bcd0f0; }
+
+  /* ---------- login ---------- */
+  .center-card { max-width: 440px; margin: 6vh auto 0; text-align: center; }
+  .center-card form, .center-card .panel { text-align: left; }
+  .login-logo { width: 96px; height: 96px; object-fit: contain; margin: 0 auto 14px; filter: drop-shadow(0 6px 22px rgba(255, 204, 47, .25)); }
+  .form-gap { display: grid; gap: 14px; margin-top: 18px; }
+  .form-error { color: #ffb3bf; font-size: 13px; font-weight: 700; margin: 0; }
+  .loading { text-align: center; color: var(--muted); padding: 18vh 0; }
+  .spinner { width: 34px; height: 34px; margin: 0 auto 14px; border-radius: 50%; border: 3px solid #23406d; border-top-color: var(--gold); animation: spin .8s linear infinite; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+</style>
+</head>
+<body>
+
+<header class="topbar">
+  <a class="brand" href="index.html" aria-label="GRC home">
+    <img class="brand-logo" src="assets/logo-light.png" alt="GRC logo">
+    <div class="brand-text">
+      <div class="eyebrow">Genius Robotics Challenge</div>
+      <div class="brand-title">Tournament Control</div>
+    </div>
+  </a>
+  <div class="top-actions">
+    <span class="conn" id="conn" data-state="connecting" role="status"><i></i><span>Connecting…</span></span>
+    <a class="btn ghost small hide-phone" href="display.html" target="_blank" rel="noopener">◫ Audience display</a>
+    <button class="btn ghost small hidden" id="signOutBtn" type="button">Sign out</button>
+  </div>
+</header>
+<div class="banner hidden" id="banner"></div>
+
+<nav class="tabbar hidden" id="tabbar" aria-label="Sections">
+  <button class="tab" type="button" data-tab="score">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="5" y="4" width="14" height="17" rx="2"/><path d="M9 4V3h6v1"/><path d="m9 13 2 2 4-4"/></svg>
+    <span>Score</span>
+  </button>
+  <button class="tab" type="button" data-tab="standings">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 20v-7h5v7M9 20V6h6v14M15 20v-4h5v4M2.5 20h19"/></svg>
+    <span>Standings</span>
+  </button>
+  <button class="tab" type="button" data-tab="matches">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4.5" width="18" height="16" rx="2"/><path d="M3 9.5h18M8 2.5v4M16 2.5v4"/></svg>
+    <span>Matches</span>
+  </button>
+  <button class="tab" type="button" data-tab="teams">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="9" cy="8" r="3.5"/><path d="M2.5 20c.8-3.6 3.4-5.5 6.5-5.5s5.7 1.9 6.5 5.5"/><path d="M16 4.5a3.5 3.5 0 0 1 0 7M18 14.6c1.8.7 3 2.6 3.5 5.4"/></svg>
+    <span>Teams</span>
+  </button>
+</nav>
+
+<main class="wrap">
+
+  <!-- loading -->
+  <section class="view on" id="view-loading">
+    <div class="loading"><div class="spinner"></div>Connecting to the tournament…</div>
+  </section>
+
+  <!-- sign in -->
+  <section class="view" id="view-login">
+    <div class="center-card">
+      <img class="login-logo" src="assets/logo-light.png" alt="GRC logo">
+      <form class="panel" id="loginForm" autocomplete="on">
+        <div class="section-title">Staff only</div>
+        <h2>Sign in to score</h2>
+        <p class="sub">Use the staff email and password the organiser created for you.</p>
+        <div class="form-gap">
+          <div><label class="lbl" for="email">Email</label><input class="field" id="email" type="email" autocomplete="username" inputmode="email" required></div>
+          <div><label class="lbl" for="password">Password</label><input class="field" id="password" type="password" autocomplete="current-password" required></div>
+          <p class="form-error hidden" id="loginError" role="alert"></p>
+          <button class="btn primary block" type="submit" id="loginBtn">Sign in</button>
+          <a class="btn ghost block" href="display.html">◫ Open the audience display instead</a>
+        </div>
+      </form>
+    </div>
+  </section>
+
+  <!-- signed in but not on staff list -->
+  <section class="view" id="view-denied">
+    <div class="center-card">
+      <img class="login-logo" src="assets/logo-light.png" alt="GRC logo">
+      <div class="panel">
+        <div class="section-title">Access needed</div>
+        <h2>Not on the staff list</h2>
+        <p class="sub">You are signed in as <b id="deniedEmail"></b>, but this email has not been added as tournament staff.</p>
+        <div class="notice" style="margin-top:14px">Organiser: in Supabase open <b>SQL Editor</b> and run<br><code id="deniedSql"></code></div>
+        <div class="form-gap">
+          <button class="btn blue block" type="button" id="deniedRetry">I've been added — check again</button>
+          <button class="btn ghost block" type="button" id="deniedSignOut">Sign out</button>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- SCORE -->
+  <section class="view" id="view-score">
+    <div class="score-grid">
+      <div class="stack">
+        <div class="panel live-card">
+          <div>
+            <div class="section-title">On the audience display</div>
+            <div class="live-match">
+              <button class="btn icon" type="button" id="livePrev" aria-label="Show previous match on display">‹</button>
+              <div><b id="liveNo">Match 1</b><small id="livePhase">On deck</small></div>
+              <button class="btn icon" type="button" id="liveNext" aria-label="Show next match on display">›</button>
+            </div>
+          </div>
+          <div>
+            <div class="section-title">Match clock<span class="hide-phone"> · synced to every screen</span></div>
+            <div class="clock-row">
+              <div class="clock" id="clock" aria-live="off">03:00</div>
+              <div class="clock-btns">
+                <button class="btn primary small" type="button" id="clockStart">▶ Start</button>
+                <button class="btn small" type="button" id="clockPause" aria-label="Pause clock">❚❚<span class="btn-txt"> Pause</span></button>
+                <button class="btn ghost small" type="button" id="clockReset" aria-label="Reset clock">↺<span class="btn-txt"> Reset</span></button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="panel" id="editor">
+          <div class="edit-head">
+            <div>
+              <div class="section-title">Enter scores</div>
+              <h2 id="editTitle">Match 1</h2>
+            </div>
+            <div class="edit-badges" id="editBadges"></div>
+          </div>
+          <div class="chips" id="matchChips" aria-label="Choose a match"></div>
+          <div class="chips-legend">
+            <span><i style="background:rgba(41,199,132,.5)"></i>Scored</span>
+            <span><i style="background:var(--gold);border-radius:50%"></i>On display</span>
+          </div>
+          <div class="notice warn hidden" id="remoteNotice">These scores were just changed on another device. <button class="linkish" type="button" id="loadRemote">Load the latest</button></div>
+          <div class="score-cards" id="scoreCards"></div>
+          <div class="savebar">
+            <span class="dirty-flag hidden" id="dirtyFlag">Unsaved</span>
+            <button class="btn ghost" type="button" id="clearScores">Clear</button>
+            <button class="btn primary" type="button" id="saveScores">✓ Save scores</button>
+          </div>
+          <p class="sub">Enter each robot's points as recorded by its judge (use 0 for no points). Saving updates the standings and the audience display instantly.</p>
+        </div>
+      </div>
+
+      <aside class="panel side-standings desktop-only">
+        <div class="row" style="margin-bottom:6px"><div class="section-title" style="margin:0">Live standings</div><span class="pill" id="sideDone">0 / 15</span></div>
+        <div class="table-wrap" id="sideTable"></div>
+        <p class="sub">Ranked by total points, then average, then best single match.</p>
+      </aside>
+    </div>
+  </section>
+
+  <!-- STANDINGS -->
+  <section class="view" id="view-standings">
+    <div class="kpis" id="kpis"></div>
+    <div class="panel">
+      <div class="row" style="margin-bottom:8px">
+        <div><div class="section-title">Tournament standings</div><h2>Leaderboard</h2></div>
+        <a class="btn ghost small" href="display.html" target="_blank" rel="noopener">◫ Audience display ↗</a>
+      </div>
+      <div class="table-wrap" id="fullTable"></div>
+      <div class="notice" style="margin-top:14px">Ranked by total points, then average points, then best single match. Every team plays 6 matches. Arrows show movement since the most recently scored match.</div>
+    </div>
+  </section>
+
+  <!-- MATCHES -->
+  <section class="view" id="view-matches">
+    <div class="panel">
+      <div class="row">
+        <div>
+          <div class="section-title">Official fixture schedule</div>
+          <h2>15 matches · 4 robots each</h2>
+          <p class="sub">Every team plays 6 times and meets every other team exactly twice. Tap a match to score it.</p>
+        </div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap">
+          <a class="btn small ghost" href="schedule.html" target="_blank" rel="noopener">▦ Public schedule ↗</a>
+          <button class="btn small" type="button" id="printBtn">⎙ Print schedule</button>
+        </div>
+      </div>
+      <div class="legend" style="margin-top:14px">
+        <span><i class="dot" style="--c:var(--c-red)"></i>Red · Metals</span>
+        <span><i class="dot" style="--c:var(--c-blue)"></i>Blue · Plastics</span>
+        <span><i class="dot" style="--c:var(--c-green)"></i>Green · Glass</span>
+        <span><i class="dot" style="--c:var(--c-yellow)"></i>Yellow · Paper</span>
+      </div>
+      <div class="fixtures" id="fixtures"></div>
+    </div>
+  </section>
+
+  <!-- TEAMS -->
+  <section class="view" id="view-teams">
+    <div class="teams-grid">
+      <div class="panel">
+        <div class="section-title">Team registration</div>
+        <h2>Register your 10 teams</h2>
+        <p class="sub">Tap a name to change it. Saved names appear instantly in every match, on every device and on the audience display.</p>
+        <div class="roster" id="roster"></div>
+        <div class="savebar">
+          <span class="dirty-flag hidden" id="rosterDirty">Unsaved</span>
+          <button class="btn ghost" type="button" id="undoTeams">Undo</button>
+          <button class="btn primary" type="button" id="saveTeams">✓ Save team names</button>
+        </div>
+      </div>
+
+      <div class="stack">
+        <div class="panel">
+          <div class="section-title">Share these links</div>
+          <div class="stack" style="gap:10px">
+            <div><label class="lbl">Audience display (projector / public)</label><div class="link-row"><code id="linkDisplay"></code><button class="btn small" type="button" data-copy="linkDisplay">Copy</button></div></div>
+            <div><label class="lbl">Match schedule (public)</label><div class="link-row"><code id="linkSchedule"></code><button class="btn small" type="button" data-copy="linkSchedule">Copy</button></div></div>
+            <div><label class="lbl">Scoring &amp; control (staff)</label><div class="link-row"><code id="linkControl"></code><button class="btn small" type="button" data-copy="linkControl">Copy</button></div></div>
+          </div>
+          <p class="sub">Tip: on iPhone/iPad tap Share → <b>Add to Home Screen</b> to open this like an app.</p>
+        </div>
+
+        <div class="panel">
+          <div class="section-title">Data &amp; backup</div>
+          <div class="tool-list">
+            <button class="btn" type="button" id="backupBtn">↓ Download backup file</button>
+            <button class="btn" type="button" id="restoreBtn">↑ Restore from backup file</button>
+            <input type="file" id="restoreFile" accept="application/json,.json" hidden>
+            <button class="btn danger" type="button" id="resetBtn">⚠ Reset entire tournament</button>
+          </div>
+          <div class="notice" id="storageNote" style="margin-top:14px"></div>
+        </div>
+      </div>
+    </div>
+  </section>
+</main>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.117.3/dist/umd/supabase.js"></script>
+<script src="assets/config.js"></script>
+<script src="assets/app.js"></script>
+<script>
+(function () {
+  'use strict';
+  const G = window.GRC, $ = G.$, esc = G.esc;
+  const TABS = ['score', 'standings', 'matches', 'teams'];
+
+  let tab = TABS.includes(location.hash.slice(1)) ? location.hash.slice(1) : 'score';
+  let d = null;
+  let authKnown = false;
+  let selected = null;       // match being edited on this device
+  let followLive = true;     // keep editing whatever is on the display
+  let lastLive = null;
+  const edit = { match: null, key: '', baseline: null, dirty: [false, false, false, false] };
+  let rosterBuilt = false;
+  const rosterDirty = Array(10).fill(false);
+
+  // ------------------------------------------------------------ utilities
+  async function busy(btn, fn) {
+    if (btn) { btn.dataset.busy = '1'; btn.disabled = true; }
+    try { await fn(); return true; }
+    catch (e) { G.toast(e.message || String(e), 'error'); return false; }
+    finally {
+      if (btn) { delete btn.dataset.busy; btn.disabled = false; }
+      if (d) { renderLive(); updateDirty(); if (rosterBuilt) updateRosterDirty(); }
+    }
+  }
+  const anyDirty = () => edit.dirty.some(Boolean);
+  const baseStr = slot => edit.baseline ? String(edit.baseline[slot]) : '';
+  const buzz = () => { try { navigator.vibrate && navigator.vibrate(8); } catch (e) {} };
+  const pageUrl = file => new URL(file, location.href).href.replace(/#.*$/, '');
+
+  // ------------------------------------------------------------ views & tabs
+  function currentView() {
+    if (!authKnown) return 'loading';
+    const u = G.user;
+    if (!u) return 'login';
+    if (!u.staff) return 'denied';
+    return tab;
+  }
+  function showView() {
+    const v = currentView();
+    document.querySelectorAll('.view').forEach(s => s.classList.toggle('on', s.id === 'view-' + v));
+    const inApp = TABS.includes(v);
+    $('tabbar').classList.toggle('hidden', !inApp);
+    document.body.classList.toggle('has-tabbar', inApp);
+    document.querySelectorAll('.tab').forEach(b => {
+      const on = b.dataset.tab === tab;
+      b.classList.toggle('on', on);
+      if (on) b.setAttribute('aria-current', 'page'); else b.removeAttribute('aria-current');
+    });
+    const u = G.user;
+    $('signOutBtn').classList.toggle('hidden', !(u && !u.demo));
+    if (u && !u.demo) $('signOutBtn').title = 'Signed in as ' + u.email;
+    if (v === 'denied') {
+      $('deniedEmail').textContent = u.email;
+      $('deniedSql').textContent = "insert into public.staff (email) values ('" + u.email.toLowerCase() + "');";
+    }
+  }
+  function setTab(t) {
+    if (!TABS.includes(t)) return;
+    tab = t;
+    if (location.hash !== '#' + t) history.replaceState(null, '', '#' + t);
+    showView();
+    window.scrollTo(0, 0);
+  }
+  $('tabbar').addEventListener('click', e => { const b = e.target.closest('[data-tab]'); if (b) setTab(b.dataset.tab); });
+  window.addEventListener('hashchange', () => { const t = location.hash.slice(1); if (TABS.includes(t) && t !== tab) setTab(t); });
+
+  // ------------------------------------------------------------ connection status
+  G.on('status', s => {
+    const c = $('conn');
+    c.dataset.state = s.state;
+    c.querySelector('span').textContent = s.label;
+    const b = $('banner');
+    if (s.state === 'offline' && s.message) {
+      b.className = 'banner error';
+      b.textContent = s.message;
+    } else if (s.state === 'demo') {
+      b.className = 'banner';
+      b.textContent = 'Demo mode — data is saved on this device only. Add your Supabase keys in assets/config.js to sync phones, iPads and the display.';
+    } else b.className = 'banner hidden';
+    $('storageNote').textContent = G.MODE === 'live'
+      ? 'Everything is saved in your Supabase database and syncs to every phone, iPad, PC and the audience display instantly. Download a backup after each session anyway.'
+      : 'Demo mode: data lives only in this browser. Download a backup before switching devices.';
+  });
+
+  // ------------------------------------------------------------ auth
+  G.on('auth', () => { authKnown = true; showView(); });
+  $('loginForm').addEventListener('submit', async e => {
+    e.preventDefault();
+    const err = $('loginError');
+    err.classList.add('hidden');
+    await busy($('loginBtn'), async () => {
+      try {
+        await G.signIn($('email').value, $('password').value);
+        $('password').value = '';
+      } catch (ex) {
+        err.textContent = ex.message;
+        err.classList.remove('hidden');
+      }
+    });
+  });
+  const signOut = async () => {
+    if ((anyDirty() || rosterDirty.some(Boolean)) && !confirm('You have unsaved changes. Sign out anyway?')) return;
+    if (!confirm('Sign out of GRC Tournament Control on this device?')) return;
+    await G.signOut();
+  };
+  $('signOutBtn').onclick = signOut;
+  $('deniedSignOut').onclick = () => G.signOut();
+  $('deniedRetry').onclick = () => location.reload();
+
+  // ------------------------------------------------------------ data
+  G.on('data', nd => {
+    d = nd;
+    const live = d.state.current_match;
+    if (selected === null) selected = live;
+    else if (followLive && live !== lastLive && !anyDirty()) selected = live;
+    lastLive = live;
+    renderLive();
+    renderChips(false);
+    renderEditor();
+    renderTables();
+    renderFixtures();
+    renderRoster();
+    tick();
+  });
+
+  // ------------------------------------------------------------ live display card + clock
+  function renderLive() {
+    const live = d.state.current_match;
+    $('liveNo').textContent = 'Match ' + live;
+    $('livePrev').disabled = live <= 1;
+    $('liveNext').disabled = live >= G.MATCH_COUNT;
+    $('liveNext').classList.toggle('nudge', !!d.matches[live - 1].scores && live < G.MATCH_COUNT);
+  }
+  async function moveLive(target, btn) {
+    if (target < 1 || target > G.MATCH_COUNT) return;
+    if (d.state.clock_running && G.clockRemaining(d) > 0 &&
+        !confirm('The match clock is running. Show Match ' + target + ' on the display and reset the clock?')) return;
+    if (selected === d.state.current_match && !anyDirty()) followLive = true;
+    await busy(btn, () => G.setCurrentMatch(target));
+  }
+  $('livePrev').onclick = e => moveLive(d.state.current_match - 1, e.currentTarget);
+  $('liveNext').onclick = e => moveLive(d.state.current_match + 1, e.currentTarget);
+  $('clockStart').onclick = e => busy(e.currentTarget, () => G.clock('start'));
+  $('clockPause').onclick = e => busy(e.currentTarget, () => G.clock('pause'));
+  $('clockReset').onclick = e => busy(e.currentTarget, () => G.clock('reset'));
+
+  const clockEl = $('clock'), phaseEl = $('livePhase'), startBtn = $('clockStart'), pauseBtn = $('clockPause');
+  let lastClock = '', finishedBuzz = false;
+  function tick() {
+    if (d) {
+      const rem = G.clockRemaining(d);
+      const txt = G.formatTime(rem);
+      if (txt !== lastClock) { clockEl.textContent = txt; lastClock = txt; }
+      const running = d.state.clock_running && rem > 0;
+      clockEl.classList.toggle('danger', rem > 0 && rem <= 20000);
+      clockEl.classList.toggle('done', rem <= 0);
+      if (!startBtn.dataset.busy) startBtn.disabled = running;
+      if (!pauseBtn.dataset.busy) pauseBtn.disabled = !running;
+      const p = G.matchPhase(d, d.state.current_match).label;
+      if (phaseEl.textContent !== p) phaseEl.textContent = p;
+      if (rem <= 0 && d.state.clock_running && !finishedBuzz) {
+        finishedBuzz = true;
+        try { navigator.vibrate && navigator.vibrate([200, 100, 200]); } catch (e) {}
+        G.toast('Time! Judges can enter the scores.');
+      }
+      if (rem > 0) finishedBuzz = false;
+    }
+  }
+  setInterval(tick, 200);
+
+  // ------------------------------------------------------------ match chips
+  function renderChips(scroll) {
+    const live = d.state.current_match;
+    $('matchChips').innerHTML = d.matches.map(m =>
+      `<button type="button" class="chip${m.scores ? ' done' : ''}${m.id === selected ? ' sel' : ''}${m.id === live ? ' live' : ''}"
+        data-match="${m.id}" aria-pressed="${m.id === selected}"
+        aria-label="Match ${m.id}${m.scores ? ', scored' : ''}${m.id === live ? ', on display' : ''}">${m.id}</button>`).join('');
+    if (scroll) {
+      const el = $('matchChips').querySelector('.sel');
+      if (el) el.scrollIntoView({ block: 'nearest', inline: 'center', behavior: 'smooth' });
+    }
+  }
+  function selectMatch(id) {
+    if (id === selected) return;
+    if (anyDirty() && !confirm('Discard the unsaved scores for Match ' + selected + '?')) return;
+    selected = id;
+    followLive = id === d.state.current_match;
+    edit.match = null;
+    renderChips(true);
+    renderEditor();
+  }
+  $('matchChips').addEventListener('click', e => { const b = e.target.closest('[data-match]'); if (b) selectMatch(Number(b.dataset.match)); });
+
+  // ------------------------------------------------------------ score editor
+  function renderEditor() {
+    const m = d.matches[selected - 1];
+    const live = d.state.current_match;
+    const names = m.team_ids.map(t => G.teamName(d, t));
+    const key = selected + '|' + names.join('|');
+    $('editTitle').textContent = 'Match ' + selected;
+    $('editBadges').innerHTML =
+      (m.scores ? '<span class="pill done">✓ Scored</span>' : '<span class="pill">Not scored</span>') +
+      (selected === live
+        ? '<span class="pill live">● On display</span>'
+        : '<button class="btn small blue" type="button" id="showOnDisplay">◫ Show on display</button>');
+    const sod = $('showOnDisplay');
+    if (sod) sod.onclick = async e => { followLive = true; await moveLive(selected, e.currentTarget); };
+
+    if (edit.key !== key) {
+      const sameMatch = edit.match === selected;
+      const keep = sameMatch ? [0, 1, 2, 3].map(i => { const el = $('score' + i); return el ? el.value : ''; }) : null;
+      $('scoreCards').innerHTML = m.team_ids.map((t, slot) => {
+        const c = G.COLORS[m.colors[slot]];
+        return `<div class="score-card" id="card${slot}" style="--c:${c.hex}">
+          <div class="sc-meta">
+            <div class="sc-robot"><span class="dot"></span>${c.name} robot · ${c.material}</div>
+            <div class="sc-team">${esc(names[slot])}</div>
+          </div>
+          <div class="stepper">
+            <button class="btn icon step" type="button" data-slot="${slot}" data-step="-1" aria-label="Subtract one point from ${esc(names[slot])}">−</button>
+            <input class="score-input" id="score${slot}" data-slot="${slot}" type="number" inputmode="numeric" pattern="[0-9]*"
+              min="0" max="9999" step="1" placeholder="–" enterkeyhint="${slot === 3 ? 'done' : 'next'}" autocomplete="off"
+              aria-label="Points for ${esc(names[slot])} (${c.name} robot)">
+            <button class="btn icon step" type="button" data-slot="${slot}" data-step="1" aria-label="Add one point to ${esc(names[slot])}">+</button>
+          </div>
+        </div>`;
+      }).join('');
+      if (!sameMatch) {
+        edit.match = selected;
+        edit.baseline = m.scores;
+        edit.dirty = [false, false, false, false];
+        $('remoteNotice').classList.add('hidden');
+        [0, 1, 2, 3].forEach(i => { $('score' + i).value = baseStr(i); });
+      } else {
+        [0, 1, 2, 3].forEach(i => { $('score' + i).value = edit.dirty[i] ? keep[i] : baseStr(i); });
+      }
+      edit.key = key;
+    }
+
+    // Someone else saved this match: refresh untouched boxes, warn about touched ones
+    if (JSON.stringify(m.scores) !== JSON.stringify(edit.baseline)) {
+      const hadDirty = anyDirty();
+      edit.baseline = m.scores;
+      [0, 1, 2, 3].forEach(i => {
+        const el = $('score' + i);
+        if (!edit.dirty[i]) el.value = baseStr(i);
+        else edit.dirty[i] = el.value !== baseStr(i);
+      });
+      $('remoteNotice').classList.toggle('hidden', !(hadDirty && anyDirty()));
+    }
+    updateDirty();
+  }
+
+  function updateDirty() {
+    [0, 1, 2, 3].forEach(i => { const c = $('card' + i); if (c) c.classList.toggle('dirty', edit.dirty[i]); });
+    $('dirtyFlag').classList.toggle('hidden', !anyDirty());
+    const m = d && d.matches[selected - 1];
+    $('clearScores').disabled = !(m && m.scores) && !anyDirty();
+    $('saveScores').textContent = m && m.scores ? '✓ Update scores' : '✓ Save scores';
+  }
+  function setScore(slot, raw) {
+    const el = $('score' + slot);
+    let v = String(raw).replace(/[^0-9]/g, '').slice(0, 4);
+    if (v.length > 1) v = String(Number(v));
+    if (el.value !== v) el.value = v;
+    edit.dirty[slot] = v !== baseStr(slot);
+    updateDirty();
+  }
+  $('scoreCards').addEventListener('input', e => {
+    if (e.target.matches('.score-input')) setScore(Number(e.target.dataset.slot), e.target.value);
+  });
+  $('scoreCards').addEventListener('click', e => {
+    const b = e.target.closest('[data-step]');
+    if (!b) return;
+    const slot = Number(b.dataset.slot);
+    const cur = parseInt($('score' + slot).value || '0', 10) || 0;
+    setScore(slot, Math.max(0, Math.min(9999, cur + Number(b.dataset.step))));
+    buzz();
+  });
+  $('scoreCards').addEventListener('keydown', e => {
+    if (e.key !== 'Enter' || !e.target.matches('.score-input')) return;
+    e.preventDefault();
+    const slot = Number(e.target.dataset.slot);
+    if (slot < 3) $('score' + (slot + 1)).focus();
+    else saveScores();
+  });
+  $('scoreCards').addEventListener('focusin', e => { if (e.target.matches('.score-input')) e.target.select(); });
+
+  async function saveScores() {
+    const vals = [0, 1, 2, 3].map(i => $('score' + i).value.trim());
+    const empty = vals.findIndex(v => v === '');
+    if (empty >= 0) { G.toast('Enter all four scores — use 0 for no points.', 'error'); $('score' + empty).focus(); return; }
+    const nums = vals.map(Number);
+    if (nums.some(n => !Number.isInteger(n) || n < 0 || n > 9999)) { G.toast('Scores must be whole numbers from 0 to 9999.', 'error'); return; }
+    const match = selected;
+    const wasScored = !!d.matches[match - 1].scores;
+    const ok = await busy($('saveScores'), () => G.saveScores(match, nums));
+    if (!ok) return;
+    if (document.activeElement && document.activeElement.blur) document.activeElement.blur();
+    edit.dirty = [false, false, false, false];
+    $('remoteNotice').classList.add('hidden');
+    updateDirty();
+    buzz();
+    G.toast('Match ' + match + (wasScored ? ' updated' : ' saved') + ' ✓  Standings are live.');
+  }
+  $('saveScores').onclick = saveScores;
+
+  $('clearScores').onclick = async e => {
+    const m = d.matches[selected - 1];
+    if (!m.scores) {
+      edit.dirty = [false, false, false, false];
+      [0, 1, 2, 3].forEach(i => { $('score' + i).value = ''; });
+      updateDirty();
+      return;
+    }
+    if (!confirm('Clear the saved scores for Match ' + selected + '? It will be removed from the standings.')) return;
+    const ok = await busy(e.currentTarget, () => G.saveScores(selected, null));
+    if (ok) {
+      edit.dirty = [false, false, false, false];
+      [0, 1, 2, 3].forEach(i => { $('score' + i).value = ''; });
+      updateDirty();
+      G.toast('Match ' + selected + ' scores cleared.');
+    }
+  };
+  $('loadRemote').onclick = () => {
+    edit.dirty = [false, false, false, false];
+    [0, 1, 2, 3].forEach(i => { $('score' + i).value = baseStr(i); });
+    $('remoteNotice').classList.add('hidden');
+    updateDirty();
+  };
+
+  // ------------------------------------------------------------ standings tables + KPIs
+  function moveHtml(r) {
+    if (!r.move) return '<span class="move same">–</span>';
+    return r.move > 0 ? `<span class="move up">▲${r.move}</span>` : `<span class="move down">▼${-r.move}</span>`;
+  }
+  function renderTables() {
+    const rows = G.standingsWithMovement(d);
+    const done = G.scoredCount(d);
+    const rankCls = r => 'rank' + (done && r.rank <= 3 ? ' r' + r.rank : '');
+
+    $('sideDone').textContent = done + ' / ' + G.MATCH_COUNT;
+    $('sideTable').innerHTML = '<table><thead><tr><th>#</th><th>Team</th><th class="num">P</th><th class="num">Pts</th></tr></thead><tbody>' +
+      rows.map(r => `<tr><td><span class="${rankCls(r)}">${r.rank}</span></td><td class="team-cell">${esc(r.team)}</td><td class="num">${r.played}/${r.scheduled}</td><td class="num pts">${r.total}</td></tr>`).join('') +
+      '</tbody></table>';
+
+    $('fullTable').innerHTML = '<table><thead><tr><th>#</th><th>Team</th><th class="hide-xs"></th><th class="num">Played</th><th class="num">Points</th><th class="num">Avg</th><th class="num hide-xs">Best</th></tr></thead><tbody>' +
+      rows.map(r => `<tr><td><span class="${rankCls(r)}">${r.rank}</span></td><td class="team-cell">${esc(r.team)}</td><td class="hide-xs">${moveHtml(r)}</td><td class="num">${r.played}/${r.scheduled}</td><td class="num pts" style="${done && r.rank === 1 ? 'color:var(--gold)' : ''}">${r.total}</td><td class="num">${r.avg.toFixed(1)}</td><td class="num hide-xs">${r.best}</td></tr>`).join('') +
+      '</tbody></table>';
+
+    const top = G.highScore(d);
+    const leader = done ? rows[0] : null;
+    $('kpis').innerHTML = [
+      ['Completed', done + ' / ' + G.MATCH_COUNT, (G.MATCH_COUNT - done) + ' matches to go'],
+      ['Leader', leader ? esc(leader.team) : '—', leader ? leader.total + ' pts' : 'No scores yet'],
+      ['Best single score', top ? top.points + ' pts' : '—', top ? esc(top.team) + ' · Match ' + top.match : 'No scores yet'],
+      ['On display', 'Match ' + d.state.current_match, esc(G.matchPhase(d, d.state.current_match).label)],
+    ].map(([a, b, c]) => `<div class="kpi"><small>${a}</small><b>${b}</b><span>${c}</span></div>`).join('');
+  }
+
+  // ------------------------------------------------------------ fixtures
+  function renderFixtures() {
+    const live = d.state.current_match;
+    $('fixtures').innerHTML = d.matches.map(m => {
+      const top = m.scores ? Math.max.apply(null, m.scores) : null;
+      return `<button type="button" class="fixture${m.id === live ? ' live' : ''}" data-fix="${m.id}">
+        <div class="fx-top"><span class="fx-title">Match ${m.id}</span>
+          <span style="display:flex;gap:6px">${m.id === live ? '<span class="pill live">● Display</span>' : ''}${m.scores ? '<span class="pill done">✓ Final</span>' : '<span class="pill">Upcoming</span>'}</span></div>
+        <div class="fx-teams">${m.team_ids.map((t, j) => `<div class="fx-team${m.scores && m.scores[j] === top && top > 0 ? ' win' : ''}">
+          <i class="dot" style="--c:${G.COLORS[m.colors[j]].hex}"></i><span class="nm">${esc(G.teamName(d, t))}</span>${m.scores ? `<span class="sc">${m.scores[j]}</span>` : ''}</div>`).join('')}</div>
+      </button>`;
+    }).join('');
+  }
+  $('fixtures').addEventListener('click', e => {
+    const f = e.target.closest('[data-fix]');
+    if (!f) return;
+    selectMatch(Number(f.dataset.fix));
+    if (selected === Number(f.dataset.fix)) setTab('score');
+  });
+
+  $('printBtn').onclick = () => {
+    const w = window.open('', '_blank');
+    if (!w) { G.toast('Allow pop-ups to print the schedule.', 'error'); return; }
+    const rows = d.matches.map(m => `<tr><td><b>${m.id}</b></td>${m.team_ids.map((t, j) =>
+      `<td style="border-left:6px solid ${G.COLORS[m.colors[j]].hex}">${esc(G.teamName(d, t))} <small>(${G.COLORS[m.colors[j]].name})</small>${m.scores ? ' — <b>' + m.scores[j] + '</b>' : ''}</td>`).join('')}</tr>`).join('');
+    w.document.write(`<!DOCTYPE html><html><head><meta charset="utf-8"><title>GRC Match Schedule</title><style>
+      body{font-family:Arial,sans-serif;padding:24px;color:#111}header{display:flex;align-items:center;gap:14px;margin-bottom:14px}
+      img{width:60px;height:60px;object-fit:contain}h1{font-size:20px;margin:0}p{margin:2px 0;color:#555;font-size:12px}
+      table{border-collapse:collapse;width:100%}td,th{border:1px solid #bbb;padding:9px;font-size:12px;text-align:left}small{color:#666}
+    </style></head><body><header><img src="${pageUrl('assets/logo.png')}" alt=""><div><h1>${esc(G.EVENT.org)} · ${esc(G.EVENT.title)} — 15-match schedule</h1>
+      <p>${esc(G.EVENT.date)} · ${esc(G.EVENT.time)} · ${esc(G.EVENT.venue)} · 4 robots per match · 3 minutes each</p></div></header>
+      <table><thead><tr><th>Match</th><th>Robot 1</th><th>Robot 2</th><th>Robot 3</th><th>Robot 4</th></tr></thead><tbody>${rows}</tbody></table>
+      <script>window.onload=function(){setTimeout(function(){window.print()},300)}<\/script></body></html>`);
+    w.document.close();
+  };
+
+  // ------------------------------------------------------------ team roster
+  function teamMatches(id) { return d.matches.filter(m => m.team_ids.includes(id)).map(m => m.id); }
+  function renderRoster() {
+    if (!rosterBuilt) {
+      $('roster').innerHTML = d.teams.map((t, i) => `<div class="roster-item" id="rosterItem${i}">
+          <label for="teamname${i}"><span class="team-num">${i + 1}</span>Team ${i + 1}</label>
+          <input class="field" id="teamname${i}" data-i="${i}" maxlength="80" placeholder="Team ${i + 1}" autocomplete="off" autocapitalize="words" enterkeyhint="${i === 9 ? 'done' : 'next'}">
+          <div class="plays" id="plays${i}"></div>
+        </div>`).join('');
+      rosterBuilt = true;
+    }
+    d.teams.forEach((t, i) => {
+      if (!rosterDirty[i]) $('teamname' + i).value = t.name;
+      $('plays' + i).textContent = 'Plays matches ' + teamMatches(t.id).join(' · ');
+    });
+    updateRosterDirty();
+  }
+  function updateRosterDirty() {
+    d.teams.forEach((t, i) => {
+      const v = $('teamname' + i).value.trim() || 'Team ' + (i + 1);
+      rosterDirty[i] = v !== t.name;
+      $('rosterItem' + i).classList.toggle('dirty', rosterDirty[i]);
+    });
+    const any = rosterDirty.some(Boolean);
+    $('rosterDirty').classList.toggle('hidden', !any);
+    $('undoTeams').disabled = !any;
+  }
+  $('roster').addEventListener('input', updateRosterDirty);
+  $('roster').addEventListener('keydown', e => {
+    if (e.key !== 'Enter' || !e.target.matches('input')) return;
+    e.preventDefault();
+    const i = Number(e.target.dataset.i);
+    if (i < 9) $('teamname' + (i + 1)).focus(); else saveTeams();
+  });
+  async function saveTeams() {
+    const names = Array.from({ length: 10 }, (_, i) => $('teamname' + i).value.trim().slice(0, 80) || 'Team ' + (i + 1));
+    const ok = await busy($('saveTeams'), () => G.saveTeamNames(names));
+    if (!ok) return;
+    if (document.activeElement && document.activeElement.blur) document.activeElement.blur();
+    rosterDirty.fill(false);
+    renderRoster();
+    edit.key = '';
+    renderEditor();
+    G.toast('Team names saved ✓  Every screen is updated.');
+  }
+  $('saveTeams').onclick = saveTeams;
+  $('undoTeams').onclick = () => { rosterDirty.fill(false); renderRoster(); };
+
+  // ------------------------------------------------------------ share links
+  $('linkDisplay').textContent = pageUrl('display.html');
+  $('linkSchedule').textContent = pageUrl('schedule.html');
+  $('linkControl').textContent = pageUrl('control.html');
+  document.querySelectorAll('[data-copy]').forEach(b => b.onclick = async () => {
+    const text = $(b.dataset.copy).textContent;
+    try { await navigator.clipboard.writeText(text); G.toast('Link copied'); }
+    catch (e) { window.prompt('Copy this link:', text); }
+  });
+
+  // ------------------------------------------------------------ backup / restore / reset
+  $('backupBtn').onclick = () => {
+    try { G.exportBackup(); G.toast('Backup downloaded.'); }
+    catch (e) { G.toast(e.message, 'error'); }
+  };
+  $('restoreBtn').onclick = () => $('restoreFile').click();
+  $('restoreFile').onchange = async e => {
+    const f = e.target.files && e.target.files[0];
+    e.target.value = '';
+    if (!f) return;
+    let b;
+    try { b = G.parseBackup(await f.text()); }
+    catch (err) { G.toast(err.message, 'error'); return; }
+    const n = b.scores.filter(Boolean).length;
+    if (!confirm('Restore "' + f.name + '"?\n\nIts 10 team names and ' + n + ' scored matches will REPLACE what is live now on every device.')) return;
+    const ok = await busy($('restoreBtn'), () => G.restoreBackup(b));
+    if (ok) { rosterDirty.fill(false); edit.match = null; edit.key = ''; renderRoster(); renderEditor(); G.toast('Backup restored ✓'); }
+  };
+  $('resetBtn').onclick = async e => {
+    const a = prompt('This erases ALL 10 team names and ALL 15 match scores on every device.\n\nDownload a backup first! Type RESET to confirm.');
+    if (a === null) return;
+    if (a.trim().toUpperCase() !== 'RESET') { G.toast('Reset cancelled — you need to type RESET.', 'error'); return; }
+    const ok = await busy(e.currentTarget, () => G.resetTournament());
+    if (ok) { rosterDirty.fill(false); edit.match = null; edit.key = ''; renderRoster(); renderEditor(); G.toast('Tournament reset.'); }
+  };
+
+  window.addEventListener('beforeunload', e => {
+    if (anyDirty() || rosterDirty.some(Boolean)) { e.preventDefault(); e.returnValue = ''; }
+  });
+
+  G.start({ auth: true });
+})();
+</script>
+</body>
+</html>
