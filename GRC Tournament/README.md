@@ -162,5 +162,7 @@ assets/app.js            shared data, live-update and sync logic
 assets/style.css         shared styles
 assets/logo*.png, icon*  GRC logo (plus a light version for dark backgrounds) and app icons
 supabase/schema.sql      database, security rules and functions (already run on your project)
+supabase/field_release.sql   optional: "Release balls" button + ESP32 servo (see esp32/README.md)
+esp32/                   optional: ESP32 program that opens the ball gate, with a step-by-step guide
 .github/workflows/keep-alive.yml   daily ping so Supabase never pauses
 ```

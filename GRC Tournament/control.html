@@ -103,6 +103,22 @@
   }
   @media (max-width: 449px) { .btn-txt { display: none; } }
 
+  /* ball release (ESP32 servo) */
+  .release { display: flex; align-items: center; justify-content: space-between; gap: 12px 18px; flex-wrap: wrap; }
+  .release .section-title { margin-bottom: 6px; }
+  .rel-info { flex: 1 1 240px; min-width: 0; }
+  .rel-status { display: flex; align-items: center; gap: 8px; font-weight: 800; font-size: 15px; }
+  .rel-status i { width: 10px; height: 10px; border-radius: 50%; background: #7a8fb3; flex: 0 0 10px; }
+  .rel-status[data-state="online"] i, .rel-status[data-state="done"] i { background: var(--green); }
+  .rel-status[data-state="done"] { color: #8ff0c2; }
+  .rel-status[data-state="sent"] { color: var(--gold); }
+  .rel-status[data-state="sent"] i { background: var(--gold); animation: blink .8s steps(2, start) infinite; }
+  .rel-status[data-state="offline"] i, .rel-status[data-state="failed"] i { background: var(--red); }
+  .rel-status[data-state="failed"] { color: #ffb3bf; }
+  .rel-sub { display: block; color: var(--muted); font-size: 12px; line-height: 1.4; margin-top: 4px; }
+  .rel-btn { flex: 0 0 auto; min-height: 52px; padding: 0 22px; font-size: 16px; }
+  @media (max-width: 639px) { .rel-btn { flex: 1 1 100%; } }
+
   .chips {
     display: flex; gap: 8px;
     overflow-x: auto; -webkit-overflow-scrolling: touch; scrollbar-width: none;
@@ -334,6 +350,15 @@
           </div>
         </div>
 
+        <div class="panel release" id="releasePanel">
+          <div class="rel-info">
+            <div class="section-title">Ball release</div>
+            <div class="rel-status" id="relStatus" data-state="checking" role="status" aria-live="polite"><i></i><span>Checking the dropper…</span></div>
+            <small class="rel-sub" id="relSub"></small>
+          </div>
+          <button class="btn blue rel-btn" type="button" id="releaseBtn">⬇ Release balls</button>
+        </div>
+
         <div class="panel" id="editor">
           <div class="edit-head">
             <div>
@@ -511,6 +536,7 @@
     if (location.hash !== '#' + t) history.replaceState(null, '', '#' + t);
     showView();
     window.scrollTo(0, 0);
+    if (t === 'score') pollRelease();
   }
   $('tabbar').addEventListener('click', e => { const b = e.target.closest('[data-tab]'); if (b) setTab(b.dataset.tab); });
   window.addEventListener('hashchange', () => { const t = location.hash.slice(1); if (TABS.includes(t) && t !== tab) setTab(t); });
@@ -618,6 +644,96 @@
     }
   }
   setInterval(tick, 200);
+
+  // ------------------------------------------------------------ ball release (ESP32 servo, see esp32/README.md)
+  const relBtn = $('releaseBtn'), relStatus = $('relStatus'), relSub = $('relSub');
+  const REL_CONFIRM_MS = 20000;   // the ESP32 ignores releases older than this
+  let relInfo = null;             // latest dropper_status() result
+  let relSetup = true;            // false until supabase/field_release.sql has been run
+  let relError = '';
+  let relWaiting = null;          // { id, match, since } until the ESP32 confirms
+  let relFlash = null;            // { state, text, sub, until } short result message
+  let relTimer = null, relInflight = false;
+
+  const ago = s => s == null ? '' : s < 60 ? s + ' s ago' : s < 3600 ? Math.floor(s / 60) + ' min ago' : Math.floor(s / 3600) + ' h ago';
+  function wifiTxt(info) {
+    const m = /rssi\s*(-?\d+)/i.exec(info || '');
+    if (!m) return '';
+    const v = Number(m[1]);
+    return 'Wi‑Fi ' + (v >= -60 ? 'strong' : v >= -72 ? 'OK' : 'weak') + ' (' + v + ' dBm)';
+  }
+  function setRel(state, text, sub) {
+    relStatus.dataset.state = state;
+    relStatus.querySelector('span').textContent = text;
+    relSub.textContent = sub || '';
+  }
+  function renderRelease() {
+    if (!relBtn.dataset.busy) relBtn.disabled = !relSetup || !!relWaiting;
+    if (!relSetup) {
+      setRel('offline', 'Not set up yet', 'Run supabase/field_release.sql in Supabase, then set up the ESP32 (esp32/README.md).');
+      return;
+    }
+    const r = relInfo;
+    if (relWaiting) {
+      if (r && r.last_done >= relWaiting.id) {
+        relFlash = { state: 'done', text: 'Released ✓ Match ' + relWaiting.match, sub: 'The dropper opened and closed the gate.', until: Date.now() + 8000 };
+        relWaiting = null;
+        buzz();
+        G.toast('Balls released ✓');
+      } else if (Date.now() - relWaiting.since > REL_CONFIRM_MS) {
+        relFlash = { state: 'failed', text: 'Not confirmed by the dropper', sub: 'Check the ESP32 has power and Wi‑Fi, then press Release again.', until: Date.now() + 60000 };
+        relWaiting = null;
+        G.toast('The dropper did not confirm the release.', 'error');
+      } else {
+        setRel('sent', 'Releasing… waiting for the dropper', 'Match ' + relWaiting.match);
+        return;
+      }
+      if (!relBtn.dataset.busy) relBtn.disabled = false;
+    }
+    if (relFlash && Date.now() < relFlash.until) { setRel(relFlash.state, relFlash.text, relFlash.sub); return; }
+    relFlash = null;
+    if (!r) { setRel('checking', relError || 'Checking the dropper…'); return; }
+    const l = r.latest;
+    const lastTxt = l
+      ? 'Last release: ' + (l.match ? 'Match ' + l.match + ', ' : '') + ago(l.ago) + (r.last_done >= l.id ? ' ✓' : ' (not confirmed)')
+      : 'No releases yet.';
+    if (r.online) setRel('online', 'Dropper online' + (r.demo ? ' (demo)' : ''), [wifiTxt(r.info), lastTxt].filter(Boolean).join(' · '));
+    else setRel('offline', 'Dropper offline', (r.seen_ago == null ? 'The ESP32 has not connected yet. ' : 'Last seen ' + ago(r.seen_ago) + '. ') + lastTxt);
+  }
+  async function pollRelease() {
+    clearTimeout(relTimer);
+    const active = !!(G.user && G.user.staff) && tab === 'score' && document.visibilityState === 'visible';
+    if (active && !relInflight) {
+      relInflight = true;
+      try {
+        relInfo = await G.dropperStatus();
+        relSetup = true;
+        relError = '';
+      } catch (e) {
+        relInfo = null;
+        if (/could not find the function/i.test(e.message || '')) relSetup = false;
+        else relError = 'Can’t check the dropper: ' + (e.message || e);
+      } finally { relInflight = false; }
+      renderRelease();
+    }
+    relTimer = setTimeout(pollRelease, relWaiting ? 700 : relSetup ? 4000 : 15000);
+  }
+  relBtn.onclick = async e => {
+    if (!d) return;
+    const m = d.state.current_match;
+    const warn = relInfo && !relInfo.online
+      ? '\n\nWarning: the dropper looks OFFLINE. It will only release if it reconnects within 20 seconds.' : '';
+    if (!confirm('Release the balls for Match ' + m + ' now?' + warn)) return;
+    relFlash = null;
+    const ok = await busy(e.currentTarget, async () => {
+      const id = await G.releaseItems();
+      relWaiting = { id: Number(id), match: m, since: Date.now() };
+    });
+    renderRelease();
+    if (ok) pollRelease();
+  };
+  document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') pollRelease(); });
+  G.on('auth', () => pollRelease());
 
   // ------------------------------------------------------------ match chips
   function renderChips(scroll) {

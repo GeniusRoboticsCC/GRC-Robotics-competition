@@ -1,0 +1,988 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>ESP32 Ball Release Setup Guide</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700;800&family=Inter:wght@400;600;700;800&display=block" rel="stylesheet">
+<style>
+  @page {
+    size: A4;
+    margin: 15mm 15mm 17mm;
+    @bottom-left { content: "GRC · ESP32 ball release setup guide"; font: 600 7.5pt 'Inter', 'Segoe UI', sans-serif; color: #7a879e; }
+    @bottom-right { content: "Page " counter(page) " of " counter(pages); font: 600 7.5pt 'Inter', 'Segoe UI', sans-serif; color: #7a879e; }
+  }
+  @page :first { margin: 0; @bottom-left { content: none; } @bottom-right { content: none; } }
+
+  :root {
+    --navy: #0f2147; --navy-2: #1d3566; --gold: #f5c400; --gold-ink: #8a6500;
+    --blue: #1d5fc4; --red: #c62839; --green: #16804f; --orange: #e67e00;
+    --ink: #18233a; --muted: #5b6982; --line: #d9e0ec; --soft: #f4f6fb;
+  }
+  * { box-sizing: border-box; }
+  html { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  body { margin: 0; font-family: 'Inter', 'Segoe UI', Arial, sans-serif; font-size: 9.6pt; line-height: 1.45; color: var(--ink); }
+  h1, h2, h3, .display { font-family: 'Barlow Condensed', 'Bahnschrift', 'Segoe UI', sans-serif; }
+  p { margin: 0 0 7px; }
+  b, strong { font-weight: 700; }
+  a { color: var(--blue); text-decoration: none; }
+
+  /* ---------- cover ---------- */
+  .cover { height: 297mm; padding: 20mm 18mm 16mm; display: flex; flex-direction: column; position: relative; overflow: hidden; }
+  .cover::before { content: ''; position: absolute; left: 0; right: 0; top: 0; height: 9mm; background: var(--navy); }
+  .cover::after { content: ''; position: absolute; left: 0; right: 0; top: 9mm; height: 2.2mm; background: var(--gold); }
+  .cv-top { display: flex; align-items: center; gap: 14px; margin-top: 6mm; }
+  .cv-top img { width: 64px; height: 64px; }
+  .cv-org { font: 800 10pt 'Inter', sans-serif; letter-spacing: .16em; text-transform: uppercase; color: var(--navy); }
+  .cv-org small { display: block; font-weight: 600; letter-spacing: .04em; text-transform: none; color: var(--muted); font-size: 9pt; margin-top: 2px; }
+  .cv-title { margin: 16mm 0 0; font-size: 52pt; line-height: .92; font-weight: 800; text-transform: uppercase; color: var(--navy); }
+  .cv-title span { color: var(--gold-ink); }
+  .cv-sub { font-size: 14pt; color: var(--muted); margin-top: 8px; font-weight: 600; }
+  .cv-facts { display: flex; gap: 10px; margin: 9mm 0 7mm; }
+  .cv-facts div { flex: 1; border: 1px solid var(--line); border-radius: 10px; padding: 9px 11px; background: var(--soft); }
+  .cv-facts small { display: block; font-size: 7.5pt; font-weight: 800; letter-spacing: .12em; text-transform: uppercase; color: var(--muted); }
+  .cv-facts b { display: block; font-size: 10.5pt; margin-top: 2px; }
+  .cv-howto { font: 700 13pt 'Barlow Condensed', sans-serif; text-transform: uppercase; letter-spacing: .06em; color: var(--navy); margin: 0 0 6px; }
+  .toc { columns: 2; column-gap: 12mm; margin-top: 2mm; padding: 0; list-style: none; counter-reset: t; }
+  .toc li { counter-increment: t; display: flex; align-items: baseline; gap: 6px; padding: 4px 0; border-bottom: 1px dotted #c3cbda; break-inside: avoid; font-size: 9.6pt; }
+  .toc li::before { content: counter(t); flex: 0 0 20px; font: 800 11pt 'Barlow Condensed', sans-serif; color: var(--gold-ink); }
+  .toc li span { flex: 1; }
+  .toc li i { font-style: normal; color: var(--muted); font-weight: 700; }
+  .cv-foot { margin-top: auto; display: flex; justify-content: space-between; font-size: 8pt; color: var(--muted); border-top: 1px solid var(--line); padding-top: 8px; }
+
+  /* ---------- parts ---------- */
+  .part { break-before: page; }
+  .part.flow { break-before: auto; margin-top: 18px; }
+  .part-head { display: flex; align-items: flex-end; justify-content: space-between; gap: 12px; border-bottom: 3px solid var(--navy); padding-bottom: 5px; margin-bottom: 10px; break-after: avoid; }
+  .part-no { font: 800 10.5pt 'Barlow Condensed', sans-serif; letter-spacing: .16em; color: var(--gold-ink); text-transform: uppercase; }
+  h1 { font-size: 25pt; line-height: 1; margin: 1px 0 0; text-transform: uppercase; color: var(--navy); font-weight: 800; }
+  .meta { font-size: 8.5pt; color: var(--muted); text-align: right; white-space: nowrap; }
+  .meta b { color: var(--navy); }
+  h2 { font-size: 14pt; text-transform: uppercase; color: var(--navy); margin: 14px 0 5px; font-weight: 700; letter-spacing: .02em; break-after: avoid; }
+  h3 { font-size: 11.5pt; text-transform: uppercase; color: var(--navy-2); margin: 10px 0 4px; font-weight: 700; break-after: avoid; }
+  .lead { font-size: 10.2pt; color: #2b3a57; }
+
+  ol.steps { list-style: none; counter-reset: s; padding: 0; margin: 6px 0 10px; }
+  ol.steps > li { counter-increment: s; position: relative; padding-left: 33px; margin: 0 0 9px; break-inside: avoid; }
+  ol.steps > li::before { content: counter(s); position: absolute; left: 0; top: 0; width: 23px; height: 23px; border-radius: 50%; background: var(--navy); color: #fff; font: 700 11pt/23px 'Barlow Condensed', sans-serif; text-align: center; }
+  ol.steps.cont { counter-reset: none; }
+  ol.steps > li > b:first-child { color: var(--navy); }
+  ul { margin: 3px 0 7px; padding-left: 18px; }
+  ul li { margin: 2px 0; }
+
+  .note { border-radius: 8px; padding: 7px 11px 7px 36px; margin: 8px 0; position: relative; break-inside: avoid; font-size: 9.2pt; }
+  .note::before { position: absolute; left: 10px; top: 6px; width: 18px; height: 18px; border-radius: 50%; color: #fff; font: 800 10pt/18px 'Inter', sans-serif; text-align: center; }
+  .note p:last-child, .note ul:last-child { margin-bottom: 0; }
+  .warn { background: #fdecee; border: 1px solid #f1b3bc; } .warn::before { content: '!'; background: var(--red); }
+  .tip  { background: #eaf2fe; border: 1px solid #b7cff5; } .tip::before  { content: 'i'; background: var(--blue); font-family: Georgia, serif; font-style: italic; }
+  .ok   { background: #e8f6ef; border: 1px solid #ade0c6; } .ok::before   { content: '✓'; background: var(--green); }
+
+  .ui { display: inline-block; padding: 0 5px; border: 1px solid #c4cee0; border-radius: 4px; background: #f6f8fc; font-weight: 600; font-size: 8.8pt; line-height: 1.5; white-space: nowrap; }
+  .key { display: inline-block; padding: 0 5px; border: 1px solid #aab6cb; border-bottom-width: 2px; border-radius: 4px; background: #fff; font: 700 8.4pt 'Inter', sans-serif; white-space: nowrap; }
+  code { font-family: 'Cascadia Mono', Consolas, monospace; font-size: 8.6pt; background: #eef1f7; padding: 0 3px; border-radius: 3px; }
+  pre { font-family: 'Cascadia Mono', Consolas, monospace; font-size: 8.4pt; line-height: 1.5; background: #f3f5f9; border: 1px solid #e0e5ef; border-left: 3px solid var(--gold); border-radius: 6px; padding: 7px 10px; margin: 6px 0 8px; white-space: pre-wrap; break-inside: avoid; }
+  pre .c { color: #6c7a93; }
+  pre .s { color: #0b7a4b; }
+
+  table { width: 100%; border-collapse: collapse; font-size: 9pt; margin: 6px 0 10px; }
+  th { background: var(--navy); color: #fff; text-align: left; padding: 5px 7px; font-weight: 600; font-size: 8.6pt; }
+  td { padding: 5px 7px; border-bottom: 1px solid var(--line); vertical-align: top; }
+  tr { break-inside: avoid; }
+  tbody tr:nth-child(even) td { background: #fafbfd; }
+  td.cbcol, th.cbcol { width: 22px; padding-right: 0; }
+
+  .cb { display: inline-block; width: 11px; height: 11px; border: 1.5px solid var(--navy); border-radius: 2px; vertical-align: -1px; background: #fff; }
+  ul.check { list-style: none; padding: 0; margin: 4px 0 8px; }
+  ul.check li { display: flex; gap: 8px; align-items: baseline; padding: 3px 0; border-bottom: 1px dotted #d3dae6; break-inside: avoid; }
+  ul.check li .cb { flex: 0 0 11px; position: relative; top: 1px; }
+  .blank { display: inline-block; min-width: 36mm; border-bottom: 1px solid #8792a8; height: 13px; vertical-align: -3px; }
+
+  figure { margin: 8px 0 10px; break-inside: avoid; }
+  figure svg { display: block; width: 100%; height: auto; }
+  figcaption { font-size: 8.3pt; color: var(--muted); margin-top: 4px; }
+  .cols { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+  .cols-6040 { display: grid; grid-template-columns: 58% 1fr; gap: 14px; align-items: start; }
+  .legend { list-style: none; padding: 0; margin: 0; font-size: 9pt; }
+  .legend li { display: flex; gap: 8px; align-items: baseline; padding: 4px 0; border-bottom: 1px solid var(--line); break-inside: avoid; }
+  .badge { flex: 0 0 18px; width: 18px; height: 18px; border-radius: 50%; background: var(--navy); color: #fff; font: 700 9pt/18px 'Inter', sans-serif; text-align: center; display: inline-block; }
+  .badge.o { background: var(--orange); }
+  .keep { break-inside: avoid; }
+  .small { font-size: 8.5pt; color: var(--muted); }
+  .pill { display: inline-block; padding: 1px 7px; border-radius: 999px; font-size: 8.3pt; font-weight: 700; white-space: nowrap; }
+  .pill.g { background: #dff3e9; color: #0f6b40; } .pill.r { background: #fbe1e5; color: #a01c30; } .pill.y { background: #fff1c2; color: #7a5600; } .pill.n { background: #e6eaf2; color: #3b4a66; }
+  .card { border: 1px solid var(--line); border-radius: 10px; padding: 9px 12px; background: var(--soft); break-inside: avoid; }
+  .card h3 { margin-top: 0; }
+  .card table td:first-child { white-space: nowrap; }
+  .wire { display: inline-block; width: 22px; height: 6px; border-radius: 3px; vertical-align: 2px; margin-right: 4px; border: 1px solid rgba(0,0,0,.35); }
+</style>
+</head>
+<body>
+
+<!-- =============================================================== COVER -->
+<section class="cover">
+  <div class="cv-top">
+    <img src="../assets/logo.png" alt="">
+    <div class="cv-org">Genius Robotics Challenge<small>Resource Recovery Tournament · Sat 14 November 2026</small></div>
+  </div>
+
+  <h1 class="cv-title">Ball release<br><span>setup guide</span></h1>
+  <div class="cv-sub">LOLIN32 ESP32 board + servo, from a new board in its packaging to the first release from the staff page</div>
+
+  <figure style="margin-top:9mm">
+    <svg viewBox="0 0 700 170" xmlns="http://www.w3.org/2000/svg" font-family="Inter, Segoe UI, sans-serif">
+      <defs>
+        <marker id="ah" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#0f2147"/></marker>
+      </defs>
+      <g fill="#f4f6fb" stroke="#d3dbea" stroke-width="1.5">
+        <rect x="2" y="10" width="140" height="125" rx="14"/>
+        <rect x="186" y="10" width="140" height="125" rx="14"/>
+        <rect x="370" y="10" width="140" height="125" rx="14"/>
+        <rect x="554" y="10" width="140" height="125" rx="14"/>
+      </g>
+      <!-- phone -->
+      <rect x="56" y="24" width="32" height="54" rx="6" fill="#0f2147"/>
+      <rect x="60" y="31" width="24" height="38" rx="2" fill="#fff"/>
+      <rect x="63" y="52" width="18" height="10" rx="2" fill="#1d5fc4"/>
+      <!-- cloud -->
+      <g fill="#3b7fff"><circle cx="243" cy="52" r="15"/><circle cx="260" cy="43" r="19"/><circle cx="278" cy="54" r="13"/><rect x="232" y="52" width="58" height="17" rx="8.5"/></g>
+      <!-- esp32 -->
+      <g transform="translate(422 22)">
+        <rect width="36" height="60" rx="3" fill="#1d2430"/>
+        <rect x="5" y="4" width="26" height="24" rx="1" fill="#c9ced6"/>
+        <g fill="#f5c400"><rect x="-4" y="12" width="4" height="3"/><rect x="-4" y="20" width="4" height="3"/><rect x="-4" y="28" width="4" height="3"/><rect x="-4" y="36" width="4" height="3"/><rect x="-4" y="44" width="4" height="3"/><rect x="36" y="12" width="4" height="3"/><rect x="36" y="20" width="4" height="3"/><rect x="36" y="28" width="4" height="3"/><rect x="36" y="36" width="4" height="3"/><rect x="36" y="44" width="4" height="3"/></g>
+        <rect x="12" y="56" width="12" height="7" fill="#9aa3ad"/>
+      </g>
+      <g fill="none" stroke="#1d5fc4" stroke-width="2.5" stroke-linecap="round"><path d="M471 30 a10 10 0 0 1 10 10"/><path d="M471 22 a18 18 0 0 1 18 18"/></g>
+      <!-- servo gate -->
+      <rect x="600" y="44" width="48" height="30" rx="3" fill="#23262d"/>
+      <circle cx="614" cy="44" r="7" fill="#fff" stroke="#23262d" stroke-width="2"/>
+      <line x1="614" y1="44" x2="648" y2="24" stroke="#f5c400" stroke-width="7" stroke-linecap="round"/>
+      <circle cx="660" cy="62" r="6" fill="#e67e00"/><circle cx="668" cy="80" r="6" fill="#29a36a"/>
+      <!-- arrows -->
+      <line x1="146" y1="52" x2="182" y2="52" stroke="#0f2147" stroke-width="2.5" marker-end="url(#ah)"/>
+      <line x1="330" y1="52" x2="366" y2="52" stroke="#0f2147" stroke-width="2.5" marker-start="url(#ah)" marker-end="url(#ah)"/>
+      <line x1="514" y1="52" x2="550" y2="52" stroke="#0f2147" stroke-width="2.5" marker-end="url(#ah)"/>
+      <!-- labels -->
+      <g text-anchor="middle" fill="#0f2147" font-weight="700" font-size="13">
+        <text x="72" y="104">Staff phone</text><text x="256" y="104">Supabase</text><text x="440" y="104">ESP32</text><text x="624" y="104">Servo gate</text>
+      </g>
+      <g text-anchor="middle" fill="#5b6982" font-size="10.5">
+        <text x="72" y="121">presses Release</text><text x="256" y="121">logs the release</text><text x="440" y="121">checks twice a second</text><text x="624" y="121">opens, then closes</text>
+      </g>
+      <text x="350" y="160" text-anchor="middle" fill="#5b6982" font-size="10.5">From button to gate: about one second. No laptop or REV Control Hub needed at the field.</text>
+    </svg>
+  </figure>
+
+  <div class="cv-facts">
+    <div><small>Time needed</small><b>About 2 hours, once</b></div>
+    <div><small>Skill level</small><b>Beginner · a little soldering*</b></div>
+    <div><small>Who</small><b>One person + the organiser</b></div>
+  </div>
+
+  <div class="cv-howto">What's in this guide</div>
+  <ol class="toc">
+    <li><span>What you need</span><i>2</i></li>
+    <li><span>Unbox and power-on test</span><i>3</i></li>
+    <li><span>Get to know the board</span><i>4</i></li>
+    <li><span>Install the Arduino software</span><i>5</i></li>
+    <li><span>Connect the board to the PC</span><i>6</i></li>
+    <li><span>Prepare the database and website</span><i>7</i></li>
+    <li><span>Put the program on the ESP32</span><i>8</i></li>
+    <li><span>Wire up the servo</span><i>10</i></li>
+    <li><span>Fit the servo and set the angles</span><i>12</i></li>
+    <li><span>Test from the staff page</span><i>13</i></li>
+    <li><span>Install it on the field</span><i>14</i></li>
+    <li><span>Event-day checklist</span><i>15</i></li>
+    <li><span>Troubleshooting</span><i>16</i></li>
+    <li><span>Quick reference card</span><i>17</i></li>
+  </ol>
+
+  <div class="cv-foot">
+    <span>* Only if the board's two pin strips came loose in the bag (see Part 2).</span>
+    <span>Version 2 (LOLIN32) · 11 November 2026</span>
+  </div>
+</section>
+
+<!-- =============================================================== 1 -->
+<section class="part" id="p1">
+  <div class="part-head"><div><div class="part-no">Part 1</div><h1>What you need</h1></div><div class="meta">Tick each item<br>before you start</div></div>
+
+  <p class="lead">Gather everything first. Tick each box as you find it.</p>
+
+  <table>
+    <thead><tr><th class="cbcol"></th><th style="width:34%">Item</th><th>Notes</th></tr></thead>
+    <tbody>
+      <tr><td class="cbcol"><span class="cb"></span></td><td><b>ESP32 board: WEMOS LOLIN32 V1.0.0</b><br><span class="small">the new board, still in its packaging</span></td><td>Says <b>LOLIN32</b> on the board and <b>ESP‑32</b> on the metal cover. This guide is written for this board. Other ESP32 boards need small changes, so ask first.</td></tr>
+      <tr><td class="cbcol"><span class="cb"></span></td><td><b>Micro‑USB data cable</b></td><td>Many cables only charge and can't carry data. A cable that came with a phone usually works.</td></tr>
+      <tr><td class="cbcol"><span class="cb"></span></td><td><b>Soldering iron and solder</b>, or someone who has one</td><td>Only if the board's two pin strips came loose in the bag (Part 2). Needed before wiring the servo, not for the earlier parts.</td></tr>
+      <tr><td class="cbcol"><span class="cb"></span></td><td><b>Windows PC or laptop</b> with internet</td><td>Only needed for setup (Parts 4–7 and 9). It doesn't need to be at the field.</td></tr>
+      <tr><td class="cbcol"><span class="cb"></span></td><td><b>Servo</b></td><td>A normal hobby servo (MG996R, MG90S, SG90…) or a <b>REV Smart Robot Servo</b> in its normal servo mode (not continuous rotation). It comes with plastic arms ("horns") and small screws.</td></tr>
+      <tr><td class="cbcol"><span class="cb"></span></td><td><b>4 × AA battery holder</b> with wire leads, ideally with an on/off switch, plus <b>4 AA batteries</b> and a spare set</td><td>Powers the servo (about 6 V). For small SG90‑type servos, use rechargeable NiMH AAs (4.8 V) or a 5 V supply. You could use a 5–6 V, 2 A+ adapter instead.</td></tr>
+      <tr><td class="cbcol"><span class="cb"></span></td><td><b>Small breadboard</b> (half size, 400 holes)</td><td>Joins the wires together without soldering.</td></tr>
+      <tr><td class="cbcol"><span class="cb"></span></td><td><b>Jumper wires</b>: 3 × male‑to‑male, 2 × female‑to‑male, 1 × female‑to‑female</td><td>"Female" ends slide onto the board's pins. "Male" ends push into the breadboard and into the servo plug. The female‑to‑female one is the <b>test wire</b> (Part 9). Buy a mixed pack.</td></tr>
+      <tr><td class="cbcol"><span class="cb"></span></td><td><b>USB power for the ESP32</b> at the field</td><td>A phone wall charger (best) or a fully charged power bank.</td></tr>
+      <tr><td class="cbcol"><span class="cb"></span></td><td><b>Wi‑Fi with internet</b> at the venue</td><td>A <b>phone hotspot</b> is the most reliable. It must be <b>2.4 GHz</b> and must not need a login web page. Pick the phone now: it should be the one used on the day.</td></tr>
+      <tr><td class="cbcol"><span class="cb"></span></td><td><b>Website access</b></td><td>A staff login for the staff page. Someone with access to the <b>Supabase dashboard</b> is needed once (Part 6).</td></tr>
+      <tr><td class="cbcol"><span class="cb"></span></td><td>Small screwdriver, tape, cable ties, a small <b>plastic</b> box</td><td>For fitting the servo arm and mounting everything on the field (Part 11). Don't use a metal box, because it blocks Wi‑Fi.</td></tr>
+    </tbody>
+  </table>
+
+  <div class="card" style="margin-top:12px">
+    <h3>Suggested timeline</h3>
+    <table style="margin:2px 0 0">
+      <tbody>
+        <tr><td style="width:28%"><b>Thursday 12 Nov</b></td><td>Parts 1–7: unbox, install the software, put the program on the board (about 1 hour).</td></tr>
+        <tr><td><b>Thursday / Friday</b></td><td>Parts 8–10: wire the servo, set the angles, test from the staff page with real balls.</td></tr>
+        <tr><td><b>Friday 13 Nov</b></td><td>Part 11: mount it on the field and run a full rehearsal from the staff phones.</td></tr>
+        <tr><td><b>Saturday 14 Nov</b></td><td>Part 12: event-day checklist, 30 minutes before doors open.</td></tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<!-- =============================================================== 2 -->
+<section class="part" id="p2">
+  <div class="part-head"><div><div class="part-no">Part 2</div><h1>Unbox and power-on test</h1></div><div class="meta"><b>10 minutes</b></div></div>
+
+  <div class="note warn"><p><b>Static electricity can damage the board.</b> Before you open the packaging, touch something metal and earthed, such as a metal tap or the metal case of a plugged-in PC. Work on a wooden or plastic table, not on carpet and not on a metal surface.</p></div>
+
+  <ol class="steps">
+    <li><b>Open the packaging.</b> The board usually comes in a silver or pink anti-static bag. It's sometimes pushed into a piece of black foam, and sometimes there are loose pin strips. Keep the bag so you can store the board in it later.</li>
+    <li><b>Take the board out of the foam</b> if it's in some. Pull it out slowly and straight, rocking it gently from end to end, so the pins don't bend.
+      <div class="note warn"><p><b>Never plug in the board while its pins are in the black foam.</b> The foam conducts electricity and can short-circuit the pins.</p></div></li>
+    <li><b>Hold the board by its edges.</b> Avoid touching the chips and the metal cover.</li>
+    <li><b>Check the pins.</b> Look at the board from the side. Are there two rows of metal pins sticking out underneath, or only empty holes?
+      <div class="note tip"><p><b>Only empty holes, with two loose pin strips in the bag?</b> That's normal for the LOLIN32. Ask someone with a soldering iron to solder them on, with the long pins pointing <b>down</b> (away from the metal cover). You can do Parts 3–7 first, because they only use the USB socket. The pins are needed from Part 8.</p></div></li>
+  </ol>
+
+  <h2>First power-on test</h2>
+  <p>This quick test shows the board and cable work before you install anything. Nothing is wired to the board yet.</p>
+  <ol class="steps">
+    <li><b>Plug the USB cable into the board</b>, then into the PC.</li>
+    <li><b>Listen for the Windows "device connected" sound.</b> This is the main check.</li>
+    <li><b>Look at the LEDs.</b> The LOLIN32 has no power light. Its small <b>CHG</b> LED may light up or flicker, which is normal when no battery is attached. The blue LED may blink if the board has a factory test program. Seeing neither is also fine.</li>
+  </ol>
+  <div class="note ok"><p><b>The Windows sound played:</b> board and cable are fine. Carry on with Part 3.</p></div>
+  <div class="note warn"><p><b>No sound:</b> try another USB socket on the PC, then another cable. The cable probably only charges, so swap it for a data cable before Part 5.</p></div>
+</section>
+
+<!-- =============================================================== 3 -->
+<section class="part" id="p3">
+  <div class="part-head"><div><div class="part-no">Part 3</div><h1>Get to know the board</h1></div><div class="meta"><b>5 minutes</b></div></div>
+  <p class="lead">Find each numbered part on your own board, and fill in the box at the bottom right. You need these details later.</p>
+
+  <div class="cols-6040">
+    <figure style="margin-top:0">
+      <svg viewBox="0 0 450 600" xmlns="http://www.w3.org/2000/svg" font-family="Cascadia Mono, Consolas, monospace">
+        <!-- board -->
+        <rect x="128" y="20" width="184" height="532" rx="8" fill="#1b2230"/>
+        <!-- module: antenna + metal cover -->
+        <rect x="156" y="26" width="128" height="36" rx="2" fill="#2c3443"/>
+        <path d="M166 34 h12 v18 h12 v-18 h12 v18 h12 v-18 h12 v18 h12 v-18 h12 v18" fill="none" stroke="#d8b23c" stroke-width="2.5"/>
+        <rect x="160" y="62" width="120" height="128" rx="3" fill="#cfd4dc" stroke="#aab2bf"/>
+        <text x="220" y="116" text-anchor="middle" font-size="17" fill="#3a4252" font-family="Inter, sans-serif" font-weight="800">ESP-32</text>
+        <text x="220" y="134" text-anchor="middle" font-size="8.5" fill="#6b7383" font-family="Inter, sans-serif">WiFi + BT</text>
+        <!-- reset button -->
+        <rect x="206" y="226" width="28" height="28" rx="3" fill="#e9ebee"/><circle cx="220" cy="240" r="7" fill="#c3c8cf"/>
+        <text x="240" y="244" font-size="8.5" fill="#e6ebf3" font-family="Inter, sans-serif" font-weight="700">RESET</text>
+        <!-- blue LED on pin 5 -->
+        <rect x="214" y="272" width="12" height="6" rx="1" fill="#2f8bff"/>
+        <text x="208" y="279" text-anchor="end" font-size="8.5" fill="#e6ebf3" font-family="Inter, sans-serif">5</text>
+        <!-- board name -->
+        <text x="232" y="330" text-anchor="middle" font-size="10" fill="#e6ebf3" font-family="Inter, sans-serif" font-weight="700">LOLIN32</text>
+        <text x="232" y="343" text-anchor="middle" font-size="8" fill="#aab3c2" font-family="Inter, sans-serif">V1.0.0</text>
+        <!-- CHG LED -->
+        <text x="158" y="384" font-size="8" fill="#e6ebf3" font-family="Inter, sans-serif">CHG</text>
+        <rect x="170" y="388" width="10" height="6" rx="1" fill="#ff9f1a"/>
+        <!-- USB chip -->
+        <rect x="232" y="430" width="34" height="34" rx="2" fill="#0c0f14" stroke="#3a4252"/>
+        <text x="249" y="450" text-anchor="middle" font-size="6.5" fill="#9aa3b2">CP2102</text>
+        <!-- battery plug (JST) -->
+        <rect x="110" y="468" width="40" height="56" rx="3" fill="#f1eee4" stroke="#bdb6a3"/>
+        <rect x="116" y="476" width="22" height="40" rx="2" fill="#ddd8c8"/>
+        <text x="158" y="487" font-size="10" fill="#e6ebf3" font-family="Inter, sans-serif">+</text>
+        <text x="158" y="513" font-size="10" fill="#e6ebf3" font-family="Inter, sans-serif">−</text>
+        <!-- micro USB -->
+        <rect x="196" y="528" width="48" height="36" rx="4" fill="#a7afba" stroke="#6f7884"/>
+        <rect x="204" y="546" width="32" height="8" rx="2" fill="#5e6772"/>
+
+        <!-- pins -->
+        <g fill="#d8b23c">
+          <circle cx="144" cy="46" r="5"/><circle cx="144" cy="71.4" r="5"/><circle cx="144" cy="96.8" r="5"/><circle cx="144" cy="122.2" r="5"/><circle cx="144" cy="147.6" r="5"/><circle cx="144" cy="173" r="5"/><circle cx="144" cy="198.4" r="5"/><circle cx="144" cy="223.8" r="5"/>
+          <circle cx="144" cy="249.2" r="5"/><circle cx="144" cy="274.6" r="5"/><circle cx="144" cy="300" r="5"/><circle cx="144" cy="325.4" r="5"/><circle cx="144" cy="350.8" r="5"/><circle cx="144" cy="376.2" r="5"/><circle cx="144" cy="401.6" r="5"/><circle cx="144" cy="427" r="5"/>
+          <circle cx="296" cy="46" r="5"/><circle cx="296" cy="71.4" r="5"/><circle cx="296" cy="96.8" r="5"/><circle cx="296" cy="122.2" r="5"/><circle cx="296" cy="147.6" r="5"/><circle cx="296" cy="173" r="5"/><circle cx="296" cy="198.4" r="5"/><circle cx="296" cy="223.8" r="5"/><circle cx="296" cy="249.2" r="5"/><circle cx="296" cy="274.6" r="5"/>
+          <circle cx="296" cy="300" r="5"/><circle cx="296" cy="325.4" r="5"/><circle cx="296" cy="350.8" r="5"/><circle cx="296" cy="376.2" r="5"/><circle cx="296" cy="401.6" r="5"/><circle cx="296" cy="427" r="5"/><circle cx="296" cy="452.4" r="5"/><circle cx="296" cy="477.8" r="5"/><circle cx="296" cy="503.2" r="5"/><circle cx="296" cy="528.6" r="5"/>
+        </g>
+        <!-- left labels (not used in this project) -->
+        <g font-size="11" fill="#9aa6bb" text-anchor="end">
+          <text x="128" y="50">3V</text><text x="128" y="75.4">EN</text><text x="128" y="100.8">VP</text><text x="128" y="126.2">VN</text><text x="128" y="151.6">34</text><text x="128" y="177">35</text><text x="128" y="202.4">32</text><text x="128" y="227.8">33</text>
+          <text x="128" y="253.2">25</text><text x="128" y="278.6">26</text><text x="128" y="304">27</text><text x="128" y="329.4">14</text><text x="128" y="354.8">12</text><text x="128" y="380.2">13</text><text x="128" y="405.6">5V</text><text x="128" y="431">GND</text>
+        </g>
+        <!-- right labels -->
+        <g font-size="11" fill="#5b6982">
+          <text x="310" y="50">GND</text><text x="310" y="75.4">TX</text><text x="310" y="100.8">RX</text><text x="310" y="126.2">3V</text><text x="310" y="151.6">22</text><text x="310" y="177">21</text><text x="310" y="202.4">GND</text>
+          <text x="310" y="253.2">19</text><text x="310" y="278.6">23</text><text x="310" y="329.4">5</text><text x="310" y="354.8">3V</text><text x="310" y="380.2">17</text><text x="310" y="405.6">16</text><text x="310" y="431">4</text>
+          <text x="310" y="456.4">0</text><text x="310" y="481.8">GND</text><text x="310" y="507.2">2</text><text x="310" y="532.6">15</text>
+        </g>
+        <!-- highlights -->
+        <circle cx="296" cy="223.8" r="9" fill="none" stroke="#0f2147" stroke-width="3"/>
+        <text x="310" y="228.3" font-size="13" font-weight="700" fill="#0f2147">GND ◄ ground</text>
+        <circle cx="296" cy="300" r="9" fill="none" stroke="#e67e00" stroke-width="3"/>
+        <text x="310" y="304.5" font-size="13" font-weight="700" fill="#e67e00">18 ◄ servo signal</text>
+        <rect x="285" y="441" width="22" height="48" rx="11" fill="none" stroke="#1d5fc4" stroke-width="2.5"/>
+        <text x="346" y="469" font-size="12.5" font-weight="700" fill="#1d5fc4">◄ test wire</text>
+
+        <!-- number badges -->
+        <g font-family="Inter, sans-serif" font-size="11" font-weight="700" text-anchor="middle">
+          <circle cx="220" cy="584" r="10" fill="#0f2147"/><text x="220" y="588" fill="#fff">1</text>
+          <circle cx="190" cy="240" r="10" fill="#0f2147"/><text x="190" y="244" fill="#fff">2</text>
+          <circle cx="250" cy="276" r="10" fill="#0f2147"/><text x="250" y="280" fill="#fff">3</text>
+          <circle cx="196" cy="391" r="10" fill="#0f2147"/><text x="196" y="395" fill="#fff">4</text>
+          <circle cx="249" cy="414" r="10" fill="#0f2147"/><text x="249" y="418" fill="#fff">5</text>
+          <circle cx="220" cy="165" r="10" fill="#0f2147"/><text x="220" y="169" fill="#fff">6</text>
+          <circle cx="272" cy="44" r="10" fill="#0f2147"/><text x="272" y="48" fill="#fff">7</text>
+          <circle cx="94" cy="496" r="10" fill="#0f2147"/><text x="94" y="500" fill="#fff">8</text>
+        </g>
+      </svg>
+      <figcaption>The <b>WEMOS LOLIN32 V1.0.0</b> from the top, with the USB socket at the bottom. Pins are labelled with plain numbers (<b>18</b>, not D18). The grey pins on the left aren't used in this project. Always go by the labels printed on your board.</figcaption>
+    </figure>
+
+    <div>
+      <ul class="legend">
+        <li><span class="badge">1</span><span><b>Micro‑USB socket.</b> Power and programming.</span></li>
+        <li><span class="badge">2</span><span><b>RESET button.</b> Restarts the board. The LOLIN32 has <b>no BOOT button</b>; the test wire does that job.</span></li>
+        <li><span class="badge">3</span><span><b>Blue LED</b> (pin 5). Our program turns it on when the board is <b>connected to Supabase</b>.</span></li>
+        <li><span class="badge">4</span><span><b>CHG LED.</b> Battery charging light. It may light or flicker when no battery is attached, which is normal.</span></li>
+        <li><span class="badge">5</span><span><b>USB chip, CP2102.</b> It needs the Silicon Labs <b>CP210x driver</b> (Part 5).</span></li>
+        <li><span class="badge">6</span><span><b>ESP‑32 module</b> under the metal cover. This is the computer.</span></li>
+        <li><span class="badge">7</span><span><b>Wi‑Fi antenna.</b> Keep this end clear of metal.</span></li>
+        <li><span class="badge">8</span><span><b>White battery plug.</b> Only for a 3.7 V LiPo battery. <b style="color:#c62839">Never plug the AA servo battery pack in here.</b></span></li>
+        <li><span class="badge o">P</span><span><b>The pins you'll use</b>, all on the right: <b style="color:#e67e00">18</b> (servo signal), a <b>GND</b> (ground), and <b style="color:#1d5fc4">0</b> with the <b style="color:#1d5fc4">GND</b> below it for the test wire.</span></li>
+      </ul>
+
+      <div class="card" style="margin-top:10px">
+        <h3>Check and write down</h3>
+        <p style="margin:6px 0 9px">Pins soldered on? &nbsp;<span class="cb"></span> yes &nbsp; <span class="cb"></span> not yet</p>
+        <p style="margin:0 0 4px">USB chip says:&nbsp; <span class="blank" style="min-width:30mm"></span></p>
+        <p class="small" style="margin:0">Expected: CP2102. If it says CH340, tell whoever set this up.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- =============================================================== 4 -->
+<section class="part" id="p4">
+  <div class="part-head"><div><div class="part-no">Part 4</div><h1>Install the Arduino software</h1></div><div class="meta"><b>20–40 minutes</b>, once per PC<br>needs internet</div></div>
+
+  <h2>A. Install Arduino IDE 2</h2>
+  <ol class="steps">
+    <li><b>On the PC, open</b> <code>arduino.cc/en/software</code> in a web browser.</li>
+    <li><b>Download the Windows installer</b>, called <span class="ui">Windows · Win 10 and newer, 64 bits</span>. If a donation page appears, click <span class="ui">Just Download</span>.</li>
+    <li><b>Run the downloaded file.</b> Click <span class="ui">I Agree</span>, keep the default options, click <span class="ui">Install</span>, then <span class="ui">Finish</span> with "Run Arduino IDE" ticked.</li>
+    <li><b>Answer the first-start questions:</b>
+      <ul>
+        <li>Windows Firewall asks about network access: click <span class="ui">Allow</span>.</li>
+        <li>Windows asks "Would you like to install this device software?": click <span class="ui">Install</span>. These are USB drivers.</li>
+        <li>Arduino offers updates: it's safe to install or skip them. No extra libraries are needed for this project.</li>
+      </ul></li>
+  </ol>
+
+  <h2>B. Add ESP32 support</h2>
+  <ol class="steps">
+    <li><b>Open the Boards Manager:</b> click the <b>second icon</b> in the left sidebar (number 5 in the picture below), or use <span class="ui">Tools</span> › <span class="ui">Board</span> › <span class="ui">Boards Manager…</span></li>
+    <li><b>Type</b> <code>esp32</code> <b>in the search box.</b></li>
+    <li><b>Find "esp32 by Espressif Systems"</b> and click <span class="ui">Install</span>. The newest version is a <b>1.9 GB download</b>, so use internet with plenty of data, not a phone hotspot. On slow internet, pick <b>2.0.17</b> in the version list next to Install first (830 MB). The program is written to work with both.
+      <div class="note warn"><p>Pick <b>"esp32 by Espressif Systems"</b>, not "Arduino ESP32 Boards by Arduino", which is for a different board.</p></div></li>
+    <li><b>Watch the Output panel</b> at the bottom. It should show <code>Downloading…</code> lines with progress. If nothing changes for 5 minutes, close Arduino completely, reopen it and click Install again. When it's finished, the label <b>"INSTALLED"</b> appears with a version number.</li>
+  </ol>
+  <div class="note tip"><p><b>"esp32 by Espressif Systems" isn't in the list?</b> Open <span class="ui">File</span> › <span class="ui">Preferences…</span>, paste this into <b>Additional boards manager URLs</b>, click <span class="ui">OK</span> and search again:<br><code>https://espressif.github.io/arduino-esp32/package_esp32_index.json</code></p></div>
+
+  <figure style="width:74%;margin:6px auto 0">
+    <svg viewBox="0 0 700 330" xmlns="http://www.w3.org/2000/svg" font-family="Inter, Segoe UI, sans-serif">
+      <rect x="1" y="1" width="698" height="328" rx="10" fill="#ffffff" stroke="#c9d1df"/>
+      <rect x="1" y="1" width="698" height="26" rx="10" fill="#e9edf3"/><rect x="1" y="16" width="698" height="11" fill="#e9edf3"/>
+      <text x="16" y="18" font-size="10" fill="#4b5568">ball_release | Arduino IDE 2</text>
+      <!-- toolbar -->
+      <rect x="1" y="27" width="698" height="40" fill="#f6f8fb"/>
+      <circle cx="26" cy="47" r="12" fill="#008184"/><path d="M20 47 l4 5 l8 -10" fill="none" stroke="#fff" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/>
+      <circle cx="56" cy="47" r="12" fill="#008184"/><path d="M50 47 h11 m-4 -5 l5 5 l-5 5" fill="none" stroke="#fff" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/>
+      <circle cx="86" cy="47" r="12" fill="#c9d1df"/>
+      <rect x="112" y="35" width="210" height="24" rx="5" fill="#fff" stroke="#c9d1df"/>
+      <text x="122" y="51" font-size="11" fill="#1f2a3d">ESP32 Dev Module</text><text x="245" y="51" font-size="10" fill="#7a869a">COM5 ▾</text>
+      <circle cx="670" cy="47" r="12" fill="#fff" stroke="#c9d1df"/><circle cx="668" cy="45" r="5" fill="none" stroke="#3d4a60" stroke-width="2"/><line x1="672" y1="49" x2="676" y2="53" stroke="#3d4a60" stroke-width="2"/>
+      <!-- sidebar -->
+      <rect x="1" y="67" width="40" height="262" fill="#eef1f6"/>
+      <g fill="none" stroke="#3d4a60" stroke-width="1.8">
+        <path d="M13 84 h7 l2 3 h8 v11 h-17 z"/>
+        <rect x="13" y="113" width="16" height="12" rx="1"/><path d="M16 113 v-3 M21 113 v-3 M26 113 v-3 M16 125 v3 M21 125 v3 M26 125 v3"/>
+        <path d="M13 144 h4 v15 h-4 z M19 144 h4 v15 h-4 z M25 145 l4 -1 l3 14 l-4 1 z"/>
+        <circle cx="21" cy="183" r="6"/><path d="M15 183 h-3 M30 183 h-3 M21 177 v-3"/>
+        <circle cx="20" cy="210" r="5"/><line x1="24" y1="214" x2="29" y2="219"/>
+      </g>
+      <rect x="6" y="104" width="30" height="30" rx="5" fill="none" stroke="#e67e00" stroke-width="2"/>
+      <!-- tabs -->
+      <rect x="41" y="67" width="658" height="26" fill="#f6f8fb"/>
+      <rect x="45" y="70" width="104" height="23" fill="#fff" stroke="#c9d1df"/><text x="54" y="86" font-size="10" fill="#1f2a3d">ball_release.ino</text>
+      <rect x="149" y="70" width="112" height="23" fill="#f6f8fb" stroke="#dde3ec"/><text x="158" y="86" font-size="10" fill="#6b7689">secrets.example.h</text>
+      <rect x="261" y="70" width="72" height="23" fill="#fff8db" stroke="#e6c34a"/><text x="272" y="86" font-size="10" fill="#1f2a3d" font-weight="700">secrets.h</text>
+      <!-- code -->
+      <g fill="#d5dbe5"><rect x="62" y="104" width="220" height="6" rx="3"/><rect x="62" y="118" width="300" height="6" rx="3"/><rect x="62" y="132" width="170" height="6" rx="3"/><rect x="76" y="146" width="260" height="6" rx="3"/><rect x="76" y="160" width="200" height="6" rx="3"/><rect x="62" y="174" width="120" height="6" rx="3"/></g>
+      <!-- output -->
+      <rect x="41" y="232" width="658" height="97" fill="#1e2430"/>
+      <text x="52" y="248" font-size="9.5" fill="#9aa6bb">Output</text>
+      <text x="52" y="268" font-size="10" fill="#d7dee9" font-family="Consolas, monospace">Connecting....</text>
+      <text x="52" y="284" font-size="10" fill="#d7dee9" font-family="Consolas, monospace">Writing at 0x00034000... (40 %)</text>
+      <text x="52" y="300" font-size="10" fill="#d7dee9" font-family="Consolas, monospace">Hard resetting via RTS pin...</text>
+      <!-- badges -->
+      <g font-size="10.5" font-weight="700" text-anchor="middle" fill="#fff">
+        <circle cx="38" cy="33" r="9" fill="#e67e00"/><text x="38" y="37">1</text>
+        <circle cx="68" cy="33" r="9" fill="#e67e00"/><text x="68" y="37">2</text>
+        <circle cx="330" cy="47" r="9" fill="#e67e00"/><text x="330" y="51">3</text>
+        <circle cx="648" cy="47" r="9" fill="#e67e00"/><text x="648" y="51">4</text>
+        <circle cx="46" cy="104" r="9" fill="#e67e00"/><text x="46" y="108">5</text>
+        <circle cx="342" cy="81" r="9" fill="#e67e00"/><text x="342" y="85">6</text>
+        <circle cx="680" cy="246" r="9" fill="#e67e00"/><text x="680" y="250">7</text>
+      </g>
+    </svg>
+    <figcaption>Arduino IDE 2, roughly. <b>1</b> Verify (only checks the program) · <b>2</b> Upload (sends it to the board) · <b>3</b> Board and port selector · <b>4</b> Serial Monitor · <b>5</b> Boards Manager · <b>6</b> File tabs (secrets.h is where your details go) · <b>7</b> Output panel</figcaption>
+  </figure>
+</section>
+
+<!-- =============================================================== 5 -->
+<section class="part" id="p5">
+  <div class="part-head"><div><div class="part-no">Part 5</div><h1>Connect the board to the PC</h1></div><div class="meta"><b>5–15 minutes</b></div></div>
+
+  <ol class="steps">
+    <li><b>Install the USB driver first.</b> The LOLIN32's USB chip is a <b>CP2102</b>, and Windows often doesn't install its driver by itself. Without it, the board won't get a COM port.
+      <ol style="margin:5px 0 0; padding-left:18px">
+        <li>On <code>silabs.com</code>, search for <b>CP210x USB to UART Bridge VCP Drivers</b>. On the <span class="ui">Downloads</span> tab, download <b>CP210x Universal Windows Driver</b>. It's a ZIP file.</li>
+        <li>Right-click the ZIP and choose <span class="ui">Extract All</span>.</li>
+        <li>In the extracted folder, right-click <code>silabser.inf</code> and choose <span class="ui">Install</span>. On Windows 11, click <span class="ui">Show more options</span> first. Accept the prompts.</li>
+      </ol></li>
+    <li><b>Plug the ESP32 into the PC</b> with the data cable. Plug it into the PC itself, not a USB hub, if you can.</li>
+    <li><b>Check Device Manager:</b> right-click the Start button, click <span class="ui">Device Manager</span>, then open <b>Ports (COM &amp; LPT)</b>. You should see <b>Silicon Labs CP210x USB to UART Bridge (COM…)</b>. The COM number in brackets is your board.</li>
+    <li><b>Choose the board and port in Arduino:</b> click the board selector at the top (3), then <span class="ui">Select other board and port…</span>. Type <code>ESP32 Dev Module</code> in the left box and click it (<b>WEMOS LOLIN32</b> also works), click your COM port on the right, then <span class="ui">OK</span>.</li>
+  </ol>
+  <p>My ESP32's COM port: <span class="blank" style="min-width:24mm"></span></p>
+
+  <h2>Still no COM port?</h2>
+  <table>
+    <thead><tr><th style="width:44%">In Device Manager you see</th><th>Do this</th></tr></thead>
+    <tbody>
+      <tr><td><b>Other devices</b> › <b>CP2102 USB to UART Bridge Controller</b>, with a yellow warning sign</td><td>The driver isn't installed. Repeat step 1, making sure you chose <span class="ui">Install</span> on <code>silabser.inf</code>. Then unplug the board and plug it back in.</td></tr>
+      <tr><td>Nothing new appears, and Windows makes no sound</td><td>The cable probably only charges. Try another cable, and another USB socket on the PC.</td></tr>
+      <tr><td>A <b>USB‑SERIAL CH340</b> entry, on a different board</td><td>That board uses a CH340 chip. On <code>wch-ic.com</code>, search for <b>CH341SER</b>, then download and run <code>CH341SER.EXE</code> and click <span class="ui">INSTALL</span>.</td></tr>
+    </tbody>
+  </table>
+  <div class="note ok"><p><b>Done when:</b> the top bar in Arduino shows <b>ESP32 Dev Module</b> and your <b>COM</b> port.</p></div>
+</section>
+
+<!-- =============================================================== 6 -->
+<section class="part" id="p6">
+  <div class="part-head"><div><div class="part-no">Part 6</div><h1>Prepare the database and website</h1></div><div class="meta"><b>5 minutes</b>, once<br>done by the organiser</div></div>
+  <p>This creates the "release" log and a secret <b>device token</b>. The token is the ESP32's password for the database. It needs someone who can sign in to the Supabase dashboard.</p>
+  <ol class="steps">
+    <li><b>Open</b> <code>supabase.com</code>, sign in and open the tournament project.</li>
+    <li><b>In the left menu, click</b> <span class="ui">SQL Editor</span>, then <span class="ui">New query</span>.</li>
+    <li><b>On the organiser's PC, open</b> <code>GRC Tournament\supabase\field_release.sql</code> in Notepad. Select everything with <span class="key">Ctrl</span>+<span class="key">A</span>, copy it with <span class="key">Ctrl</span>+<span class="key">C</span>, and paste it into the SQL Editor.</li>
+    <li><b>Click</b> <span class="ui">Run</span>. The result at the bottom shows one row, headed <b>DEVICE_TOKEN (copy into secrets.h)</b>.</li>
+    <li><b>Copy that long code</b> and paste it into Notepad for Part 7.
+      <div class="note warn"><p><b>Treat the token like a password.</b> Don't print it, post it in a group chat or put it on the website. If you lose it, run the same file again and it shows the same token. To make a new token, see Part 13.</p></div></li>
+    <li><b>Check the website:</b> sign in to the staff page and open the <span class="ui">Score</span> tab. Under the match clock there's a <b>Ball release</b> panel.</li>
+  </ol>
+  <table>
+    <thead><tr><th style="width:36%">The Ball release panel says</th><th>Meaning</th></tr></thead>
+    <tbody>
+      <tr><td><span class="pill r">● Not set up yet</span></td><td>Steps 1–4 above haven't been done, or the page needs a reload.</td></tr>
+      <tr><td><span class="pill r">● Dropper offline</span></td><td>Correct for now. The ESP32 connects in Part 7.</td></tr>
+      <tr><td><i>No Ball release panel at all</i></td><td>The website update isn't online yet. Ask whoever manages the GitHub repository to push it.</td></tr>
+    </tbody>
+  </table>
+</section>
+
+<!-- =============================================================== 7 -->
+<section class="part" id="p7">
+  <div class="part-head"><div><div class="part-no">Part 7</div><h1>Put the program on the ESP32</h1></div><div class="meta"><b>15 minutes</b></div></div>
+
+  <h2>A. Get the program files</h2>
+  <ul>
+    <li><b>On the organiser's PC:</b> they're in <code>Desktop\GRC Tournament\esp32\ball_release\</code></li>
+    <li><b>On another PC:</b> open the GitHub repository, click <span class="ui">Code</span> › <span class="ui">Download ZIP</span>, then right-click the ZIP and choose <span class="ui">Extract All</span>. Open <code>GRC Tournament\esp32\ball_release\</code></li>
+  </ul>
+  <p class="small">Keep the folder name <code>ball_release</code>. Arduino needs the folder to have the same name as the <code>.ino</code> file inside it.</p>
+
+  <h2>B. Open it and fill in your details</h2>
+  <ol class="steps">
+    <li><b>Double-click</b> <code>ball_release.ino</code>. It opens in Arduino. You can also use <span class="ui">File</span> › <span class="ui">Open…</span></li>
+    <li><b>Click the</b> <span class="ui">secrets.h</span> <b>tab</b> (6) and fill in the four lines between the quote marks:
+<pre><span class="c">// The Wi-Fi it will use at the venue (2.4 GHz)</span>
+#define WIFI_SSID       <span class="s">"GRC-Hotspot"</span>          <span class="c">// exact name, capitals matter</span>
+#define WIFI_PASSWORD   <span class="s">"your-password-here"</span>
+
+<span class="c">// Optional backup network, e.g. a second phone's hotspot ("" if none)</span>
+#define WIFI_SSID_2     <span class="s">""</span>
+#define WIFI_PASSWORD_2 <span class="s">""</span>
+
+<span class="c">// The token from Part 6</span>
+#define DEVICE_TOKEN    <span class="s">"3f9a1c…the long code…"</span></pre>
+      Keep the quote marks <code>"</code> and change only the text between them.
+      <div class="note tip"><p><b>No secrets.h tab?</b> Click the <b>⋯</b> button at the right end of the tabs, then <span class="ui">New Tab</span>, and name it <code>secrets.h</code>. Copy everything from the <span class="ui">secrets.example.h</span> tab into it, then fill it in.</p></div></li>
+    <li><b>Save</b> with <span class="key">Ctrl</span>+<span class="key">S</span>.</li>
+  </ol>
+
+  <div class="note warn"><p><b>Make the hotspot 2.4 GHz</b>, because the ESP32 can't see 5 GHz Wi‑Fi:</p>
+    <ul>
+      <li><b>iPhone:</b> go to <span class="ui">Settings</span> › <span class="ui">Personal Hotspot</span> and turn on <b>Maximise Compatibility</b>.</li>
+      <li><b>Android:</b> in the Hotspot settings, set the <b>AP band</b> to <b>2.4 GHz</b>. Also turn off "Turn off hotspot automatically" if your phone has it.</li>
+    </ul></div>
+  <div class="note warn"><p><b>Never upload secrets.h to GitHub</b>, especially through the GitHub website. It holds your Wi‑Fi password and the token.</p></div>
+
+  <h2>C. Upload</h2>
+  <ol class="steps">
+    <li><b>Check the top bar</b> (3) shows <b>ESP32 Dev Module</b> and your COM port.</li>
+    <li><b>Click Upload</b> (2, the → arrow). The first time, "Compiling sketch…" takes 1–3 minutes.</li>
+    <li><b>Watch the Output panel</b> (7). It shows <code>Connecting....</code>, then <code>Writing at … (10 %) … (100 %)</code>, and finally <code>Hard resetting via RTS pin...</code>. That last line means it's done.
+      <div class="note tip"><p><b>Stuck on <code>Connecting……</code>, or "Failed to connect"?</b> The LOLIN32 has no BOOT button, so use the test wire instead. Connect pin <b>0</b> to the <b>GND</b> pin below it, press <b>RESET</b>, click Upload again, and remove the wire once the percentages start. Press <b>RESET</b> when it's finished.</p></div>
+      <div class="note warn"><p><b>Red error text while "Compiling"?</b> Take a photo or copy the first red lines and send them to whoever set up the website. The most common cause is a missing quote mark <code>"</code> in secrets.h.</p></div></li>
+  </ol>
+
+  <h2>D. Check that it works</h2>
+  <ol class="steps cont" style="counter-reset: s 3">
+    <li><b>Open the Serial Monitor</b> (4, top right). In its bar, set the speed to <span class="ui">115200 baud</span>.</li>
+    <li><b>Press RESET</b> on the board once to restart it. Within about 10 seconds you should see:
+<pre>GRC ball release starting
+Connecting to Wi-Fi "GRC-Hotspot"...
+Wi-Fi connected to "GRC-Hotspot", signal -52 dBm
+Connected to Supabase. Waiting for the Release button (last release was #0).</pre></li>
+  </ol>
+  <div class="note ok"><p><b>Done when:</b> the <b>blue LED</b> next to RESET <b>stays on</b>, and the staff page's Ball release panel shows <span class="pill g">● Dropper online</span>. If the LED does the opposite (on while offline), change <code>LED_ACTIVE_LOW</code> near the top of <code>ball_release.ino</code> and upload again.</p></div>
+</section>
+
+<!-- =============================================================== 8 -->
+<section class="part" id="p8">
+  <div class="part-head"><div><div class="part-no">Part 8</div><h1>Wire up the servo</h1></div><div class="meta"><b>15 minutes</b></div></div>
+
+  <div class="note warn"><p><b>Before you start:</b> the board's pin strips must be soldered on (Part 2). Unplug the ESP32's USB cable and take one battery out of the holder, or switch it off. Wire everything with the power off, check it against the table, then switch on. Pins <b>18</b> and <b>GND</b> are both on the right-hand side of the LOLIN32 (Part 3).</p></div>
+
+  <figure>
+    <svg viewBox="0 0 900 560" xmlns="http://www.w3.org/2000/svg" font-family="Inter, Segoe UI, sans-serif">
+      <!-- ===== breadboard ===== -->
+      <rect x="300" y="170" width="360" height="250" rx="8" fill="#f6f3ea" stroke="#cfc6ae" stroke-width="1.5"/>
+      <line x1="310" y1="178" x2="650" y2="178" stroke="#d93025" stroke-width="2"/>
+      <line x1="310" y1="214" x2="650" y2="214" stroke="#1d5fc4" stroke-width="2"/>
+      <text x="304" y="193" font-size="12" font-weight="800" fill="#d93025" text-anchor="end">+</text>
+      <text x="304" y="209" font-size="12" font-weight="800" fill="#1d5fc4" text-anchor="end">−</text>
+      <g fill="#8d8670">
+        <!-- + rail y=188, − rail y=204 -->
+        <circle cx="316" cy="188" r="2.4"/><circle cx="332" cy="188" r="2.4"/><circle cx="348" cy="188" r="2.4"/><circle cx="364" cy="188" r="2.4"/><circle cx="380" cy="188" r="2.4"/><circle cx="412" cy="188" r="2.4"/><circle cx="428" cy="188" r="2.4"/><circle cx="444" cy="188" r="2.4"/><circle cx="460" cy="188" r="2.4"/><circle cx="476" cy="188" r="2.4"/><circle cx="508" cy="188" r="2.4"/><circle cx="524" cy="188" r="2.4"/><circle cx="540" cy="188" r="2.4"/><circle cx="556" cy="188" r="2.4"/><circle cx="572" cy="188" r="2.4"/><circle cx="604" cy="188" r="2.4"/><circle cx="620" cy="188" r="2.4"/><circle cx="636" cy="188" r="2.4"/>
+        <circle cx="316" cy="204" r="2.4"/><circle cx="332" cy="204" r="2.4"/><circle cx="348" cy="204" r="2.4"/><circle cx="364" cy="204" r="2.4"/><circle cx="380" cy="204" r="2.4"/><circle cx="412" cy="204" r="2.4"/><circle cx="428" cy="204" r="2.4"/><circle cx="444" cy="204" r="2.4"/><circle cx="460" cy="204" r="2.4"/><circle cx="476" cy="204" r="2.4"/><circle cx="508" cy="204" r="2.4"/><circle cx="524" cy="204" r="2.4"/><circle cx="540" cy="204" r="2.4"/><circle cx="556" cy="204" r="2.4"/><circle cx="572" cy="204" r="2.4"/><circle cx="604" cy="204" r="2.4"/><circle cx="620" cy="204" r="2.4"/><circle cx="636" cy="204" r="2.4"/>
+      </g>
+      <!-- terminal holes: generated pattern -->
+      <defs>
+        <pattern id="holes" x="308" y="230" width="16" height="14" patternUnits="userSpaceOnUse"><circle cx="8" cy="7" r="2.4" fill="#8d8670"/></pattern>
+      </defs>
+      <rect x="308" y="230" width="336" height="70" fill="url(#holes)"/>
+      <rect x="308" y="318" width="336" height="70" fill="url(#holes)"/>
+      <rect x="306" y="302" width="340" height="14" fill="#e7e1d1"/>
+      <g font-size="9" fill="#a39a80" text-anchor="end"><text x="304" y="240">a</text><text x="304" y="296">e</text><text x="304" y="328">f</text><text x="304" y="384">j</text></g>
+      <!-- signal strip highlight: column x=540, rows a–e (y 237..293) -->
+      <rect x="532" y="230" width="16" height="70" rx="4" fill="#e67e00" fill-opacity=".22" stroke="#e67e00" stroke-width="1.5"/>
+      <text x="480" y="438" font-size="11" fill="#9a5a00" font-weight="700" text-anchor="middle">signal strip: the 5 holes in this column are joined</text>
+      <line x1="540" y1="426" x2="540" y2="302" stroke="#e67e00" stroke-width="1" stroke-dasharray="3 3"/>
+
+      <!-- ===== battery holder ===== -->
+      <rect x="330" y="40" width="200" height="62" rx="6" fill="#2a2c31"/>
+      <g fill="#c8a24a"><rect x="342" y="50" width="40" height="18" rx="3"/><rect x="388" y="50" width="40" height="18" rx="3"/><rect x="434" y="50" width="40" height="18" rx="3"/><rect x="480" y="50" width="40" height="18" rx="3"/></g>
+      <g fill="#3a3c42"><rect x="342" y="74" width="40" height="18" rx="3"/><rect x="388" y="74" width="40" height="18" rx="3"/><rect x="434" y="74" width="40" height="18" rx="3"/><rect x="480" y="74" width="40" height="18" rx="3"/></g>
+      <text x="430" y="30" text-anchor="middle" font-size="12" font-weight="700" fill="#0f2147">4 × AA battery holder (about 6 V)</text>
+
+      <!-- ===== servo ===== -->
+      <rect x="720" y="240" width="150" height="74" rx="5" fill="#23262d"/>
+      <rect x="708" y="262" width="12" height="30" rx="2" fill="#23262d"/><rect x="870" y="262" width="12" height="30" rx="2" fill="#23262d"/>
+      <circle cx="830" cy="277" r="17" fill="#3a3e47"/><circle cx="830" cy="277" r="8" fill="#fff"/>
+      <line x1="830" y1="277" x2="830" y2="235" stroke="#f2f2f2" stroke-width="9" stroke-linecap="round"/>
+      <text x="768" y="306" text-anchor="middle" font-size="11" font-weight="800" fill="#cfd4dc">SERVO</text>
+      <text x="795" y="336" text-anchor="middle" font-size="12" font-weight="700" fill="#0f2147">Servo</text>
+      <!-- servo plug -->
+      <rect x="676" y="254" width="22" height="42" rx="2" fill="#111"/>
+      <g stroke-width="5"><line x1="698" y1="262" x2="720" y2="262" stroke="#7b4a1e"/><line x1="698" y1="275" x2="720" y2="275" stroke="#d93025"/><line x1="698" y1="288" x2="720" y2="288" stroke="#f28c00"/></g>
+
+      <!-- ===== ESP32 (LOLIN32) ===== -->
+      <rect x="40" y="120" width="160" height="350" rx="8" fill="#1b2230"/>
+      <rect x="62" y="128" width="116" height="104" rx="3" fill="#cfd4dc"/>
+      <text x="120" y="186" text-anchor="middle" font-size="13" font-weight="800" fill="#4a5262">ESP-32</text>
+      <text x="112" y="330" text-anchor="middle" font-size="10" font-weight="700" fill="#e6ebf3">LOLIN32</text>
+      <rect x="26" y="404" width="32" height="44" rx="3" fill="#f1eee4" stroke="#bdb6a3"/>
+      <g fill="#d8b23c">
+        <circle cx="186" cy="140" r="4"/><circle cx="186" cy="156.5" r="4"/><circle cx="186" cy="173" r="4"/><circle cx="186" cy="189.5" r="4"/><circle cx="186" cy="206" r="4"/><circle cx="186" cy="222.5" r="4"/><circle cx="186" cy="239" r="4"/><circle cx="186" cy="255.5" r="4"/><circle cx="186" cy="272" r="4"/><circle cx="186" cy="288.5" r="4"/><circle cx="186" cy="305" r="4"/><circle cx="186" cy="321.5" r="4"/><circle cx="186" cy="338" r="4"/><circle cx="186" cy="354.5" r="4"/><circle cx="186" cy="371" r="4"/><circle cx="186" cy="387.5" r="4"/><circle cx="186" cy="404" r="4"/><circle cx="186" cy="420.5" r="4"/><circle cx="186" cy="437" r="4"/><circle cx="186" cy="453.5" r="4"/>
+        <circle cx="54" cy="140" r="4"/><circle cx="54" cy="156.5" r="4"/><circle cx="54" cy="173" r="4"/><circle cx="54" cy="189.5" r="4"/><circle cx="54" cy="206" r="4"/><circle cx="54" cy="222.5" r="4"/><circle cx="54" cy="239" r="4"/><circle cx="54" cy="255.5" r="4"/><circle cx="54" cy="272" r="4"/><circle cx="54" cy="288.5" r="4"/><circle cx="54" cy="305" r="4"/><circle cx="54" cy="321.5" r="4"/><circle cx="54" cy="338" r="4"/><circle cx="54" cy="354.5" r="4"/><circle cx="54" cy="371" r="4"/><circle cx="54" cy="387.5" r="4"/>
+      </g>
+      <text x="174" y="309" text-anchor="end" font-size="11" font-weight="800" fill="#ffb347">18</text>
+      <text x="174" y="259.5" text-anchor="end" font-size="11" font-weight="800" fill="#ffffff">GND</text>
+      <rect x="98" y="462" width="44" height="26" rx="3" fill="#a7afba"/>
+      <!-- usb cable + power -->
+      <path d="M120 488 C120 500 120 505 120 515" stroke="#5e6772" stroke-width="7" fill="none" stroke-linecap="round"/>
+      <rect x="40" y="515" width="160" height="38" rx="8" fill="#e8ecf3" stroke="#b9c3d4"/>
+      <text x="120" y="538" text-anchor="middle" font-size="11" font-weight="700" fill="#0f2147">USB charger / power bank</text>
+
+      <!-- ===== wires (outline + colour) ===== -->
+      <g fill="none" stroke-linecap="round">
+        <!-- 1 battery red -> + rail (348,188) -->
+        <path d="M348 102 C348 140 348 160 348 188" stroke="#4a1410" stroke-width="7"/><path d="M348 102 C348 140 348 160 348 188" stroke="#d93025" stroke-width="5"/>
+        <!-- 2 battery black -> − rail (380,204) -->
+        <path d="M376 102 C378 150 380 170 380 204" stroke="#000" stroke-width="7"/><path d="M376 102 C378 150 380 170 380 204" stroke="#2b2b2b" stroke-width="5"/>
+        <!-- 3 servo red -> + rail (604,188) -->
+        <path d="M676 275 C640 270 604 240 604 188" stroke="#4a1410" stroke-width="7"/><path d="M676 275 C640 270 604 240 604 188" stroke="#d93025" stroke-width="5"/>
+        <!-- 4 servo brown -> − rail (620,204) -->
+        <path d="M676 262 C650 258 620 238 620 204" stroke="#2e1a0a" stroke-width="7"/><path d="M676 262 C650 258 620 238 620 204" stroke="#7b4a1e" stroke-width="5"/>
+        <!-- 5 servo orange -> signal a (540,237) -->
+        <path d="M676 288 C600 300 560 140 540 237" stroke="#6b3d00" stroke-width="7"/><path d="M676 288 C600 300 560 140 540 237" stroke="#f28c00" stroke-width="5"/>
+        <!-- 6 ESP32 pin 18 -> signal c (540,265) -->
+        <path d="M186 305 C300 350 470 330 540 265" stroke="#6b3d00" stroke-width="7"/><path d="M186 305 C300 350 470 330 540 265" stroke="#f28c00" stroke-width="5"/>
+        <!-- 7 ESP32 GND -> − rail (332,204) -->
+        <path d="M186 255.5 C230 255 280 215 332 204" stroke="#000" stroke-width="7"/><path d="M186 255.5 C230 255 280 215 332 204" stroke="#2b2b2b" stroke-width="5"/>
+      </g>
+      <!-- wire ends -->
+      <g fill="#0b0b0b"><rect x="344" y="184" width="8" height="8"/><rect x="376" y="200" width="8" height="8"/><rect x="600" y="184" width="8" height="8"/><rect x="616" y="200" width="8" height="8"/><rect x="536" y="233" width="8" height="8"/><rect x="536" y="261" width="8" height="8"/><rect x="328" y="200" width="8" height="8"/></g>
+      <!-- numbers -->
+      <g font-size="11" font-weight="800" text-anchor="middle" fill="#fff">
+        <circle cx="330" cy="140" r="10" fill="#0f2147"/><text x="330" y="144">1</text>
+        <circle cx="398" cy="140" r="10" fill="#0f2147"/><text x="398" y="144">2</text>
+        <circle cx="660" cy="232" r="10" fill="#0f2147"/><text x="660" y="236">4</text>
+        <circle cx="636" cy="304" r="10" fill="#0f2147"/><text x="636" y="308">3</text>
+        <circle cx="596" cy="150" r="10" fill="#0f2147"/><text x="596" y="154">5</text>
+        <circle cx="352" cy="352" r="10" fill="#0f2147"/><text x="352" y="356">6</text>
+        <circle cx="258" cy="253" r="10" fill="#0f2147"/><text x="258" y="257">7</text>
+      </g>
+    </svg>
+    <figcaption>Jumper wire colours don't matter. The colours in the drawing just make it easier to follow. The wire <b>ends</b> (black squares) show exactly which hole each one goes in.</figcaption>
+  </figure>
+
+  <table>
+    <thead><tr><th style="width:5%">#</th><th style="width:31%">From</th><th style="width:30%">To</th><th>Wire</th></tr></thead>
+    <tbody>
+      <tr><td><b>1</b></td><td>Battery holder <b>red</b> lead (+)</td><td>Breadboard <b style="color:#d93025">+ rail</b></td><td>The holder's own lead</td></tr>
+      <tr><td><b>2</b></td><td>Battery holder <b>black</b> lead (−)</td><td>Breadboard <b style="color:#1d5fc4">− rail</b></td><td>The holder's own lead</td></tr>
+      <tr><td><b>3</b></td><td>Servo plug <b>red</b> (+)</td><td>Breadboard <b style="color:#d93025">+ rail</b></td><td>Male‑to‑male</td></tr>
+      <tr><td><b>4</b></td><td>Servo plug <b>brown/black</b> (−)</td><td>Breadboard <b style="color:#1d5fc4">− rail</b></td><td>Male‑to‑male</td></tr>
+      <tr><td><b>5</b></td><td>Servo plug <b>orange/yellow/white</b> (signal)</td><td>A hole in row <b>a</b> of any column</td><td>Male‑to‑male</td></tr>
+      <tr><td><b>6</b></td><td>ESP32 pin <b style="color:#e67e00">18</b></td><td>The <b>same column</b> as wire 5 (rows a–e)</td><td>Female‑to‑male</td></tr>
+      <tr><td><b>7</b></td><td>ESP32 pin <b>GND</b></td><td>Breadboard <b style="color:#1d5fc4">− rail</b></td><td>Female‑to‑male</td></tr>
+      <tr><td><b>8</b></td><td>ESP32 USB socket</td><td>USB charger or power bank</td><td>USB data cable</td></tr>
+    </tbody>
+  </table>
+</section>
+
+<!-- =============================================================== 8 cont -->
+<section class="part" id="p8b">
+  <div class="part-head"><div><div class="part-no">Part 8, continued</div><h1>Wiring tips and checks</h1></div><div class="meta">Check before switching on</div></div>
+
+  <div class="cols">
+    <div>
+      <h3>Servo wire colours</h3>
+      <table style="margin-top:2px">
+        <tbody>
+          <tr><td><span class="wire" style="background:#7b4a1e"></span><b>Brown</b> or <b>black</b></td><td>Ground (−)</td></tr>
+          <tr><td><span class="wire" style="background:#d93025"></span><b>Red</b> (middle wire)</td><td>Power (+)</td></tr>
+          <tr><td><span class="wire" style="background:#f28c00"></span><b>Orange</b>, <b>yellow</b> or <b>white</b></td><td>Signal</td></tr>
+        </tbody>
+      </table>
+      <p class="small">REV Smart Robot Servo: black = −, red = +, white = signal.</p>
+
+      <h3>How a breadboard joins wires</h3>
+      <ul>
+        <li>The long <b>+</b> and <b>−</b> rows along the edge (the <b>rails</b>) are each joined all the way along.</li>
+        <li>On some breadboards the rails are <b>split in the middle</b>: look for a gap in the red and blue lines. If yours has a gap, keep all the + and − wires on the same half.</li>
+        <li>Each short column of <b>5 holes</b> (rows a–e) is joined. The groove in the middle separates a–e from f–j.</li>
+      </ul>
+    </div>
+    <div>
+      <h3>Practical tips</h3>
+      <ul>
+        <li><b>Servo plug:</b> push one end of each male‑to‑male jumper into the three holes of the servo's plug.</li>
+        <li><b>Battery leads</b> are soft, stranded wire. Twist the bare ends tightly so they push firmly into the holes. If they're too short or floppy, ask someone to solder on header pins, or use a holder with a plug.</li>
+        <li><b>A holder with an on/off switch</b> gives you a servo power switch, which is handy for setup and at the field.</li>
+        <li><b>The ESP32 doesn't go in the breadboard.</b> It's too wide. Let it sit beside the breadboard on the jumper wires.</li>
+      </ul>
+    </div>
+  </div>
+
+  <div class="note warn"><p><b>Never connect the battery or the servo's red wire to any ESP32 pin</b>, including 3V and 5V, <b>or to the board's white battery plug</b>. The ESP32 gets its power only from USB. The two meet only at <b>GND</b>.</p></div>
+  <div class="note warn"><p><b>Wire 7 (GND to GND) is required.</b> Without it the servo twitches randomly or doesn't move at all.</p></div>
+
+  <h2>Check before switching on</h2>
+  <ul class="check">
+    <li><span class="cb"></span><span>Battery red and servo red are both in the <b>+</b> rail, and nothing else is.</span></li>
+    <li><span class="cb"></span><span>Battery black, servo brown and ESP32 <b>GND</b> are all in the <b>−</b> rail.</span></li>
+    <li><span class="cb"></span><span>Servo signal and ESP32 pin <b>18</b> are in the <b>same 5‑hole column</b>, on the same side of the groove.</span></li>
+    <li><span class="cb"></span><span>No bare wire ends are touching each other.</span></li>
+    <li><span class="cb"></span><span>Nothing is connected to the ESP32's <b>3V</b> or <b>5V</b> pins, or to its white battery plug.</span></li>
+  </ul>
+  <div class="note ok"><p><b>All ticked?</b> Put the battery back in, or switch the holder on, then plug in the ESP32's USB. The servo moves once to its <b>closed</b> position. That's normal.</p></div>
+</section>
+
+<!-- =============================================================== 9 -->
+<section class="part" id="p9">
+  <div class="part-head"><div><div class="part-no">Part 9</div><h1>Fit the servo and set the angles</h1></div><div class="meta"><b>15–30 minutes</b><br>needs the PC for changes</div></div>
+
+  <div class="note warn"><p><b>Keep fingers clear of the gate</b> whenever the servo has power. It can move suddenly, for example when the board restarts.</p></div>
+
+  <figure>
+    <svg viewBox="0 0 700 226" xmlns="http://www.w3.org/2000/svg" font-family="Inter, Segoe UI, sans-serif">
+      <!-- closed -->
+      <g transform="translate(40 10)">
+        <rect x="70" y="0" width="8" height="120" fill="#9aa6bb"/><rect x="142" y="0" width="8" height="120" fill="#9aa6bb"/>
+        <circle cx="110" cy="30" r="17" fill="#e67e00"/><circle cx="110" cy="66" r="17" fill="#29a36a"/><circle cx="110" cy="102" r="17" fill="#1d5fc4"/>
+        <circle cx="60" cy="130" r="13" fill="#23262d"/><circle cx="60" cy="130" r="5" fill="#fff"/>
+        <line x1="60" y1="130" x2="158" y2="130" stroke="#f5c400" stroke-width="9" stroke-linecap="round"/>
+        <text x="110" y="172" text-anchor="middle" font-size="14" font-weight="800" fill="#0f2147">CLOSED</text>
+        <text x="110" y="191" text-anchor="middle" font-size="11" fill="#5b6982" font-family="Consolas, monospace">CLOSED_ANGLE = 0</text>
+        <text x="110" y="207" text-anchor="middle" font-size="10.5" fill="#5b6982">arm blocks the opening</text>
+      </g>
+      <!-- arrow -->
+      <path d="M300 95 h70" stroke="#0f2147" stroke-width="3" marker-end="url(#ah2)"/>
+      <defs><marker id="ah2" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="#0f2147"/></marker></defs>
+      <text x="335" y="82" text-anchor="middle" font-size="11" fill="#5b6982">Release</text>
+      <text x="335" y="118" text-anchor="middle" font-size="10" fill="#5b6982">for 1.5 s</text>
+      <!-- open -->
+      <g transform="translate(410 10)">
+        <rect x="70" y="0" width="8" height="120" fill="#9aa6bb"/><rect x="142" y="0" width="8" height="120" fill="#9aa6bb"/>
+        <circle cx="110" cy="58" r="17" fill="#e67e00"/><circle cx="105" cy="98" r="17" fill="#29a36a" opacity=".9"/><circle cx="115" cy="138" r="17" fill="#1d5fc4" opacity=".75"/>
+        <circle cx="60" cy="130" r="13" fill="#23262d"/><circle cx="60" cy="130" r="5" fill="#fff"/>
+        <line x1="60" y1="130" x2="60" y2="32" stroke="#f5c400" stroke-width="9" stroke-linecap="round"/>
+        <text x="110" y="172" text-anchor="middle" font-size="14" font-weight="800" fill="#0f2147">OPEN</text>
+        <text x="110" y="191" text-anchor="middle" font-size="11" fill="#5b6982" font-family="Consolas, monospace">OPEN_ANGLE = 90</text>
+        <text x="110" y="207" text-anchor="middle" font-size="10.5" fill="#5b6982">arm swings away, balls drop</text>
+      </g>
+    </svg>
+    <figcaption>One example layout. Your gate can look different: what matters is the arm position for "closed" and for "open".</figcaption>
+  </figure>
+
+  <ol class="steps">
+    <li><b>Switch on the servo battery, then plug the ESP32 into the PC</b> (the PC is needed to change the angles). The servo turns to the <b>closed</b> position and stays there.</li>
+    <li><b>Fit the arm.</b> If it's already on, unscrew it and pull it off. Push the arm onto the shaft at the angle where it <b>shuts the gate</b>, then put the small screw back in.</li>
+    <li><b>Test with the test wire.</b> Push one end of the female‑to‑female jumper onto pin <b>0</b> and leave it there. To test, push the other end onto the <b>GND</b> pin just below pin 0 for a second, then pull it off. The gate should open for 1.5 seconds and close again. The Serial Monitor shows <code>Opening the gate (test on pin 0)</code>. This works even without Wi‑Fi.
+      <div class="note tip"><p>Don't leave pin 0 connected to GND while plugging in or pressing RESET. That starts the board in programming mode, so it waits instead of running. Pull the wire off GND and press RESET to fix it.</p></div></li>
+    <li><b>Adjust if needed.</b> On the PC, open <code>ball_release.ino</code>. Change these lines near the top, then <b>Upload</b> again (Part 7C) and repeat step 3:
+<pre>const int CLOSED_ANGLE = 0;               <span class="c">// gate shut (0 to 180)</span>
+const int OPEN_ANGLE = 90;                <span class="c">// gate open (0 to 180)</span>
+const unsigned long HOLD_OPEN_MS = 1500;  <span class="c">// how long it stays open (1500 = 1.5 s)</span></pre></li>
+  </ol>
+
+  <table>
+    <thead><tr><th style="width:42%">What you see</th><th>Change</th></tr></thead>
+    <tbody>
+      <tr><td>Opens the wrong way</td><td>Swap the numbers, for example <code>CLOSED_ANGLE = 90</code> and <code>OPEN_ANGLE = 0</code>.</td></tr>
+      <tr><td>Doesn't open far enough</td><td>Move <code>OPEN_ANGLE</code> further from <code>CLOSED_ANGLE</code>, for example 90 → 110.</td></tr>
+      <tr><td>Servo buzzes or strains when closed</td><td>It's pushing against something. Move <code>CLOSED_ANGLE</code> 5–10 degrees towards <code>OPEN_ANGLE</code>.</td></tr>
+      <tr><td>Some balls stay behind</td><td>Increase <code>HOLD_OPEN_MS</code>, for example to <code>2500</code>.</td></tr>
+      <tr><td>Arm is roughly right but a bit off</td><td>Fine-tune the angle a few degrees at a time, or re-fit the arm one notch over.</td></tr>
+    </tbody>
+  </table>
+  <p>Final settings: &nbsp;Closed <span class="blank" style="min-width:16mm"></span> &nbsp; Open <span class="blank" style="min-width:16mm"></span> &nbsp; Hold time <span class="blank" style="min-width:20mm"></span> ms</p>
+</section>
+
+<!-- =============================================================== 10 -->
+<section class="part" id="p10">
+  <div class="part-head"><div><div class="part-no">Part 10</div><h1>Test from the staff page</h1></div><div class="meta"><b>10 minutes</b></div></div>
+  <ol class="steps">
+    <li><b>On the phone staff will use on the day,</b> sign in to the staff page and open the <span class="ui">Score</span> tab.</li>
+    <li><b>Check the Ball release panel</b> shows <span class="pill g">● Dropper online</span> and the Wi‑Fi strength. "Strong" and "OK" are both fine.</li>
+    <li><b>Load a few balls</b> behind the closed gate.</li>
+    <li><b>Press</b> <span class="ui">⬇ Release balls</span>, then <span class="ui">OK</span>.</li>
+    <li><b>Watch the panel and the gate:</b> the panel shows <span class="pill y">● Releasing… waiting for the dropper</span>, the gate opens and closes, and then the panel shows <span class="pill g">● Released ✓ Match N</span>.</li>
+    <li><b>Repeat 5 times</b> with real balls, including from a second staff phone.</li>
+    <li><b>Test a Wi‑Fi drop:</b> turn the hotspot off. Within about 15 seconds the panel shows <span class="pill r">● Dropper offline</span>. Turn it back on: within about 30 seconds it's back to <span class="pill g">● Dropper online</span>.</li>
+  </ol>
+
+  <h2>What the panel can show</h2>
+  <table>
+    <thead><tr><th style="width:38%">Panel</th><th>Meaning and what to do</th></tr></thead>
+    <tbody>
+      <tr><td><span class="pill g">● Dropper online</span></td><td>Ready. The ESP32 checked in within the last 10 seconds.</td></tr>
+      <tr><td><span class="pill y">● Releasing… waiting for the dropper</span></td><td>The press was received. The button is locked until the dropper confirms, usually 2–3 seconds.</td></tr>
+      <tr><td><span class="pill g">● Released ✓ Match N</span></td><td>The gate opened and closed.</td></tr>
+      <tr><td><span class="pill r">● Not confirmed by the dropper</span></td><td>No confirmation within 20 seconds. Check power, the LED and the hotspot, then press again.</td></tr>
+      <tr><td><span class="pill r">● Dropper offline</span></td><td>The ESP32 isn't connected: no power, no Wi‑Fi, or the hotspot is off.</td></tr>
+      <tr><td><span class="pill r">● Not set up yet</span></td><td>The database step (Part 6) is missing.</td></tr>
+    </tbody>
+  </table>
+
+  <div class="card">
+    <h3>Built-in safety</h3>
+    <ul style="margin-bottom:0">
+      <li><b>No surprise drops:</b> after a power cut or restart, the ESP32 never repeats an old release.</li>
+      <li><b>No late drops:</b> it ignores any release more than 20 seconds old, for example if the Wi‑Fi dropped for a while.</li>
+      <li><b>No double drops:</b> two presses within 3 seconds, even from two phones, count as one.</li>
+      <li><b>A record of every release:</b> each one is logged with the match number and the staff member who pressed it.</li>
+    </ul>
+  </div>
+</section>
+
+<!-- =============================================================== 11 -->
+<section class="part" id="p11">
+  <div class="part-head"><div><div class="part-no">Part 11</div><h1>Install it on the field</h1></div><div class="meta"><b>30 minutes</b><br>day before the event</div></div>
+  <ol class="steps">
+    <li><b>Mount the servo firmly</b> with screws, cable ties or strong double-sided tape, so it can't twist when the gate opens. Test again with the test wire after mounting.</li>
+    <li><b>Put the ESP32 and breadboard in a small plastic box</b>, not a metal one, which blocks Wi‑Fi. Leave a gap or hole for the wires. Keep it away from the robots, the balls and people's feet.</li>
+    <li><b>Secure every wire.</b> Tape the jumper wires to the breadboard and box so a tug can't pull them out. Loose jumpers are the most common failure at events.</li>
+    <li><b>Power for the ESP32:</b> a phone wall charger is best. If you use a power bank, charge it fully and test it for 30 minutes. Some power banks switch off by themselves when the load is small.</li>
+    <li><b>Hotspot phone:</b> keep it within about 10 m of the box, on a charger, with auto-off disabled. If the panel shows weak Wi‑Fi, move the phone closer.</li>
+    <li><b>Batteries:</b> put fresh AAs in on the morning of the event and keep a spare set in the box.</li>
+    <li><b>Label the box</b> "Ball release – please don't touch".</li>
+    <li><b>Full rehearsal:</b> run a complete fake match from the staff phone: start the clock, release the balls, and check <span class="pill g">● Released ✓</span> appears.</li>
+  </ol>
+</section>
+
+<!-- =============================================================== 12 -->
+<section class="part" id="p12">
+  <div class="part-head"><div><div class="part-no">Part 12</div><h1>Event-day checklist</h1></div><div class="meta">Saturday 14 November</div></div>
+
+  <div class="cols">
+    <div>
+      <h2 style="margin-top:0">30 minutes before doors open</h2>
+      <ul class="check">
+        <li><span class="cb"></span><span>Hotspot on, on 2.4 GHz (Maximise Compatibility), phone charging</span></li>
+        <li><span class="cb"></span><span>Fresh AA batteries in, servo battery switched on</span></li>
+        <li><span class="cb"></span><span>ESP32 plugged in, and the blue LED on within about 10 seconds</span></li>
+        <li><span class="cb"></span><span>Staff page shows <b>Dropper online</b> with Strong or OK Wi‑Fi</span></li>
+        <li><span class="cb"></span><span>Empty test release from the staff page: the gate opens and closes, and the panel shows <b>Released ✓</b></span></li>
+        <li><span class="cb"></span><span>All wires taped down, box closed and labelled</span></li>
+        <li><span class="cb"></span><span>Balls loaded with the gate closed</span></li>
+      </ul>
+
+      <h2>Every match</h2>
+      <ul class="check">
+        <li><span class="cb"></span><span>Correct match on the display</span></li>
+        <li><span class="cb"></span><span>At the start signal, press <b>⬇ Release balls</b> and confirm</span></li>
+        <li><span class="cb"></span><span>The panel shows <b>Released ✓ Match N</b></span></li>
+        <li><span class="cb"></span><span>Reload the balls for the next match</span></li>
+      </ul>
+    </div>
+    <div>
+      <div class="card" style="background:#fff7e0;border-color:#f0d58a">
+        <h3>If something goes wrong mid-event</h3>
+        <ol class="steps" style="margin-bottom:0">
+          <li><b>Don't hold up the match.</b> Use the backup: touch the test wire from pin 0 to GND, or drop the balls by hand.</li>
+          <li><b>Look at the blue LED.</b> If it's off, check the ESP32's power and the hotspot.</li>
+          <li><b>Servo doesn't move but the panel shows Released ✓?</b> Check the servo battery and its wires.</li>
+          <li><b>Still stuck?</b> Unplug the ESP32's USB for 5 seconds, then plug it back in. It reconnects within about 10 seconds and won't drop anything by itself.</li>
+        </ol>
+      </div>
+
+      <h2>After the event</h2>
+      <ul class="check">
+        <li><span class="cb"></span><span>Unplug the ESP32 and take the batteries out</span></li>
+        <li><span class="cb"></span><span>Store the board in its anti-static bag</span></li>
+      </ul>
+    </div>
+  </div>
+</section>
+
+<!-- =============================================================== 13 -->
+<section class="part" id="p13">
+  <div class="part-head"><div><div class="part-no">Part 13</div><h1>Troubleshooting</h1></div><div class="meta">Serial Monitor at <b>115200 baud</b></div></div>
+  <table>
+    <thead><tr><th style="width:38%">You see</th><th>Do this</th></tr></thead>
+    <tbody>
+      <tr><td>No Windows sound when plugged in</td><td>Try another cable and another USB socket. Check that the board isn't sitting on anything metal.</td></tr>
+      <tr><td>No COM port in <span class="ui">Tools</span> › <span class="ui">Port</span></td><td>Use a data cable, not a charge-only one, and install the CP210x or CH340 driver (Part 5).</td></tr>
+      <tr><td>"esp32" doesn't appear in the Boards Manager</td><td>Add the board URL in <span class="ui">File</span> › <span class="ui">Preferences</span> (Part 4B).</td></tr>
+      <tr><td>Upload stuck on <code>Connecting……</code> or "Failed to connect"</td><td>Connect pin 0 to GND, press RESET, upload, then remove the wire (Part 7C). Close any other program using the COM port.</td></tr>
+      <tr><td><code>secrets.h is missing</code> when compiling</td><td>Create the secrets.h tab (Part 7B).</td></tr>
+      <tr><td>Red errors mentioning <code>secrets.h</code> or <code>expected …</code></td><td>A quote mark <code>"</code> is missing or extra in secrets.h. Compare it with the example.</td></tr>
+      <tr><td><code>Wi-Fi not found yet (it must be 2.4 GHz)</code></td><td>Check the name and password, including capitals. Make the hotspot 2.4 GHz (Part 7B) and move it closer.</td></tr>
+      <tr><td><code>Connection error</code> repeating</td><td>The hotspot has no mobile data or signal. Open a website on the hotspot phone to check.</td></tr>
+      <tr><td><code>Supabase error 404</code></td><td>The database step is missing. Run <code>field_release.sql</code> (Part 6).</td></tr>
+      <tr><td><code>Supabase error 401</code> or <code>403</code></td><td>The token in secrets.h is wrong. Copy it again (Part 6), then upload again.</td></tr>
+      <tr><td><code>Brownout detector was triggered</code>, or the board restarts when the servo moves</td><td>The servo is getting power from the ESP32. It must use the battery pack, with only GND shared (Part 8).</td></tr>
+      <tr><td>Servo twitches or doesn't move at all</td><td>Check wire 7 (GND to the − rail), that pin 18 and the servo signal are in the same column, and the batteries.</td></tr>
+      <tr><td>Board does nothing after power-up, and the Serial Monitor shows <code>waiting for download</code></td><td>Pin 0 was connected to GND at power-up. Pull the test wire off GND and press <b>RESET</b>.</td></tr>
+      <tr><td>Panel: <b>Not set up yet</b></td><td>Run <code>field_release.sql</code> (Part 6), then reload the staff page.</td></tr>
+      <tr><td>Panel: <b>Dropper offline</b> while the Serial Monitor says it's connected</td><td>Reload the staff page. Check the staff phone has internet.</td></tr>
+      <tr><td>Panel: <b>Not confirmed</b>, but the gate did open</td><td>The confirmation was lost because the Wi‑Fi dropped right after. The balls were released, so you don't need to press again.</td></tr>
+    </tbody>
+  </table>
+
+  <div class="card">
+    <h3>Make a new device token</h3>
+    <p>Do this if the token was shared by accident. Run these two lines in the Supabase SQL Editor, put the new token in secrets.h, and upload again:</p>
+<pre>update public.field_devices set token = replace(gen_random_uuid()::text, '-', '') where name = 'dropper';
+select token from public.field_devices where name = 'dropper';</pre>
+  </div>
+</section>
+
+<!-- =============================================================== 14 -->
+<section class="part" id="p14">
+  <div class="part-head"><div><div class="part-no">Part 14</div><h1>Quick reference card</h1></div><div class="meta">Print this page and keep it<br>in the box with the ESP32</div></div>
+
+  <div class="cols">
+    <div class="card">
+      <h3>Wiring</h3>
+      <table style="margin:2px 0 0">
+        <tbody>
+          <tr><td>Servo signal</td><td>→ ESP32 pin <b style="color:#e67e00">18</b> (same breadboard column)</td></tr>
+          <tr><td>Servo red</td><td>→ battery + (breadboard + rail)</td></tr>
+          <tr><td>Servo brown</td><td>→ battery − (− rail)</td></tr>
+          <tr><td>ESP32 GND</td><td>→ − rail <b>(required)</b></td></tr>
+          <tr><td>ESP32 power</td><td>USB only</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="card">
+      <h3>Board lights and buttons</h3>
+      <table style="margin:2px 0 0">
+        <tbody>
+          <tr><td>CHG LED on or flickering</td><td>Has power (normal)</td></tr>
+          <tr><td>Blue LED on</td><td>Connected, ready to release</td></tr>
+          <tr><td>Blue LED off</td><td>No Wi‑Fi or no connection</td></tr>
+          <tr><td>Pin <b>0</b> to <b>GND</b> (a moment)</td><td>Test release, works offline</td></tr>
+          <tr><td><b>RESET</b></td><td>Restart (never drops by itself)</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <div class="cols" style="margin-top:12px">
+    <div class="card">
+      <h3>Staff page panel</h3>
+      <table style="margin:2px 0 0">
+        <tbody>
+          <tr><td><span class="pill g">Dropper online</span></td><td>Ready</td></tr>
+          <tr><td><span class="pill y">Releasing…</span></td><td>Waiting about 2–3 s</td></tr>
+          <tr><td><span class="pill g">Released ✓</span></td><td>Done</td></tr>
+          <tr><td><span class="pill r">Not confirmed</span></td><td>Check power and Wi‑Fi, press again</td></tr>
+          <tr><td><span class="pill r">Dropper offline</span></td><td>No power or no Wi‑Fi</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="card">
+      <h3>Settings on this board</h3>
+      <table style="margin:2px 0 0">
+        <tbody>
+          <tr><td>Wi‑Fi (hotspot)</td><td><span class="blank" style="min-width:34mm"></span></td></tr>
+          <tr><td>Backup Wi‑Fi</td><td><span class="blank" style="min-width:34mm"></span></td></tr>
+          <tr><td>COM port (setup PC)</td><td><span class="blank" style="min-width:20mm"></span></td></tr>
+          <tr><td>Closed / Open angle</td><td><span class="blank" style="min-width:12mm"></span> / <span class="blank" style="min-width:12mm"></span></td></tr>
+          <tr><td>Hold time</td><td><span class="blank" style="min-width:16mm"></span> ms</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <div class="card" style="margin-top:12px">
+    <h3>Changing something later</h3>
+    <ol class="steps" style="margin-bottom:0">
+      <li>Plug the ESP32 into the setup PC and open <code>ball_release.ino</code> in Arduino IDE.</li>
+      <li>Change the <b>secrets.h</b> tab for a new Wi‑Fi or token, or the angle lines at the top of <b>ball_release.ino</b>.</li>
+      <li>Press <span class="key">Ctrl</span>+<span class="key">S</span>, check the board and COM port, then click <b>Upload →</b>. If it gets stuck on Connecting, see Part 7C.</li>
+      <li>Check the Serial Monitor (115200 baud) says <code>Connected to Supabase</code>.</li>
+    </ol>
+  </div>
+
+  <div class="note tip" style="margin-top:12px"><p><b>Backup plans at the field</b>, in order: touch the test wire from pin <b>0</b> to <b>GND</b> → unplug and replug the ESP32's USB → drop the balls by hand. Never hold up a match for the dropper.</p></div>
+</section>
+
+</body>
+</html>

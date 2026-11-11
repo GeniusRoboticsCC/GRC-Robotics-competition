@@ -1,0 +1,2 @@
+# ESP32 Wi-Fi password and device token: never commit these
+esp32/**/secrets.h

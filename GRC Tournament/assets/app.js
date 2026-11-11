@@ -345,15 +345,37 @@
         p_scores.forEach((sc, i) => fns.save_scores(d, { p_match: i + 1, p_scores: sc }));
         fns.set_current_match(d, { p_match: clamp(p_current || 1, 1, MATCH_COUNT) });
       },
+      // Ball release: demo mode pretends an ESP32 is connected and finishes each release after ~1 s
+      release_items(d) {
+        const f = d.field || (d.field = { last_id: 0, at: 0, match: null });
+        if (Date.now() - f.at < 3000) throw new Error('The balls were released a moment ago. Wait 3 seconds before trying again.');
+        f.last_id++;
+        f.at = Date.now();
+        f.match = d.state.current_match;
+        return f.last_id;
+      },
+      dropper_status(d) {
+        const f = d.field || { last_id: 0, at: 0, match: null };
+        const ms = Date.now() - f.at;
+        const finished = ms >= 1200;
+        return {
+          demo: true, online: true, seen_ago: 0, info: null,
+          last_done: finished ? f.last_id : Math.max(0, f.last_id - 1),
+          done_ago: f.last_id && finished ? Math.floor((ms - 1200) / 1000) : null,
+          latest: f.last_id ? { id: f.last_id, match: f.match, ago: Math.floor(ms / 1000) } : null,
+        };
+      },
     };
+    const readOnly = new Set(['dropper_status']);
 
     return {
       kind: 'demo',
       fetchAll: async () => read(),
       rpc: async (name, args) => {
         const d = JSON.parse(JSON.stringify(read()));
-        fns[name](d, args || {});
-        write(d);
+        const out = fns[name](d, args || {});
+        if (!readOnly.has(name)) write(d);
+        return out;
       },
       subscribe() {}, syncClock: async () => {},
       watchAuth() { user = { email: 'demo@this-device', staff: true, demo: true }; authReady = true; emit('auth', user); },
@@ -404,6 +426,13 @@
     try { await backend.rpc(name, args); }
     catch (e) { throw friendlyError(e); }
     await refresh();
+  }
+
+  // A database call that returns a value and doesn't change the tournament data
+  async function call(name, args) {
+    if (!backend) throw new Error(lastError || 'Not connected');
+    try { return await backend.rpc(name, args); }
+    catch (e) { throw friendlyError(e); }
   }
 
   // ---------------------------------------------------------------- tournament maths
@@ -568,6 +597,9 @@
     clock: action => mutate('clock_control', { p_action: action }),
     resetTournament: () => mutate('reset_tournament'),
     restoreBackup: b => mutate('restore_tournament', { p_names: b.names, p_scores: b.scores, p_current: b.current }),
+    // Ball release (ESP32 servo, see esp32/README.md)
+    releaseItems: () => call('release_items'),
+    dropperStatus: () => call('dropper_status'),
     exportBackup, parseBackup,
     standings, standingsWithMovement, scoredCount, teamName, clockRemaining, matchPhase, highScore, awards, formatAvg, formatTime, parseTime,
     esc, toast, keepAwake, $,
