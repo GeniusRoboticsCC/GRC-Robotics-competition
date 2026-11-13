@@ -150,6 +150,15 @@
   /* ---------- floating controls ---------- */
   .fab { position: fixed; right: 16px; bottom: calc(16px + var(--safe-b)); z-index: 20; display: flex; gap: 8px; transition: opacity .4s; }
   body.idle .fab { opacity: 0; pointer-events: none; }
+  /* Browsers only play sound after a click on the page: this stays visible until someone clicks once */
+  .sound-prompt {
+    position: fixed; left: 50%; bottom: calc(18px + var(--safe-b)); z-index: 25; transform: translateX(-50%);
+    padding: 10px 18px; border-radius: 999px; border: 1px solid var(--gold);
+    background: rgba(10, 26, 59, .96); color: var(--gold); font-weight: 800; font-size: 14px; white-space: nowrap;
+    box-shadow: 0 10px 30px rgba(0, 0, 0, .45); cursor: pointer; animation: soundNudge 2.4s ease-in-out infinite;
+  }
+  @keyframes soundNudge { 50% { box-shadow: 0 10px 30px rgba(0, 0, 0, .45), 0 0 0 6px rgba(255, 204, 47, .18); } }
+  @media (max-width: 700px) { .sound-prompt { bottom: calc(68px + var(--safe-b)); font-size: 13px; } }   /* above the corner buttons on phones */
   .error-overlay { position: fixed; left: 50%; top: 14px; transform: translateX(-50%); z-index: 30; max-width: calc(100vw - 32px); }
 
   /* ---------- big-screen layout: everything fits on one screen, no scrolling ---------- */
@@ -423,8 +432,10 @@
 
 <div class="fab">
   <button class="btn small hidden" type="button" id="videoShow">▶ Show live video</button>
+  <button class="btn small" type="button" id="soundBtn" title="Match sounds on this screen">🔊 Sound on</button>
   <button class="btn small" type="button" id="fullBtn" title="Fullscreen (F)">⛶ Fullscreen</button>
 </div>
+<button class="sound-prompt hidden" type="button" id="soundPrompt">🔊 Tap anywhere to turn on match sounds</button>
 <div class="banner error error-overlay hidden" id="errorBox" style="border-radius:12px"></div>
 <div class="win-fx hidden" id="winFx" role="status" aria-live="assertive"></div>
 
@@ -457,7 +468,104 @@
   });
 
   // ------------------------------------------------------------ render
-  G.on('data', nd => { d = nd; renderStream(); render(); tick(); checkWinners(); });
+  G.on('data', nd => { d = nd; renderStream(); render(); checkStartSound(); tick(); checkWinners(); });
+
+  // ------------------------------------------------------------ match sounds
+  // assets/sounds/match-start.mp3          → when staff press ▶ Start (also when resuming a paused clock)
+  // assets/sounds/30-seconds-ole-trumpet.mp3 → when the running clock reaches 0:30
+  // Every device showing this audience display plays them (the staff and schedule pages stay silent).
+  // Both sounds are timed from the shared server clock, so all screens play them together.
+  // Browsers only allow sound after someone has tapped/clicked the page, so each device shows a
+  // "tap for match sounds" prompt until it's tapped once. "🔊 Sound on/off" (or ?sound=off) controls a screen.
+  const SOUND_KEY = 'grc_sound';
+  const sounds = {
+    start: new Audio('assets/sounds/match-start.mp3'),
+    thirty: new Audio('assets/sounds/30-seconds-ole-trumpet.mp3'),
+  };
+  Object.values(sounds).forEach(a => { a.preload = 'auto'; });
+  let soundOn = (() => {
+    const q = new URLSearchParams(location.search).get('sound');
+    if (q === 'off' || q === 'on') { try { localStorage.setItem(SOUND_KEY, q); } catch (e) {} return q === 'on'; }
+    try { const v = localStorage.getItem(SOUND_KEY); if (v === 'on' || v === 'off') return v === 'on'; } catch (e) {}
+    return true;                           // on by default on every device showing the audience display
+  })();
+  let soundUnlocked = false;
+
+  function renderSoundUi() {
+    $('soundBtn').textContent = soundOn ? '🔊 Sound on' : '🔇 Sound off';
+    $('soundBtn').setAttribute('aria-pressed', String(soundOn));
+    $('soundPrompt').classList.toggle('hidden', !soundOn || soundUnlocked);
+  }
+  // Called on the first click / key press: from then on the browser lets the page play sound.
+  // Safari (iPad/iPhone) also needs each sound started once during that click, so do it silently.
+  function unlockSound() {
+    if (soundUnlocked) return;
+    soundUnlocked = true;
+    Object.values(sounds).forEach(a => {
+      a.muted = true;
+      const p = a.play();
+      if (p) p.then(() => { if (a.muted) { a.pause(); a.currentTime = 0; a.muted = false; } })
+              .catch(() => { a.muted = false; });
+    });
+    renderSoundUi();
+  }
+  function playSound(name) {
+    if (!soundOn) return;
+    const a = sounds[name];
+    try {
+      a.muted = false;
+      a.currentTime = 0;
+      const p = a.play();
+      if (p) p.catch(() => { soundUnlocked = false; renderSoundUi(); });   // blocked: ask for a click
+    } catch (e) { /* ignore */ }
+  }
+  ['pointerdown', 'keydown', 'touchend'].forEach(ev => document.addEventListener(ev, unlockSound, { passive: true }));
+  $('soundPrompt').onclick = unlockSound;
+  $('soundBtn').onclick = () => {
+    soundOn = !soundOn;
+    try { localStorage.setItem(SOUND_KEY, soundOn ? 'on' : 'off'); } catch (e) {}
+    renderSoundUi();
+    if (soundOn) playSound('start');     // quick test so the operator can check the speaker volume
+  };
+  renderSoundUi();
+
+  // A "run" of the clock = one press of Start (incl. Start after Pause or after time-up)
+  const runKey = () => {
+    const s = d && d.state;
+    return s && s.clock_running && s.clock_ends_at ? s.current_match + '|' + s.clock_ends_at : null;
+  };
+
+  // Start sound. Every device plays it START_SYNC_MS after Start was pressed (measured on the shared
+  // server clock), so phones and projectors that get the update at slightly different moments still
+  // sound together. Quiet when the page loads mid-match or hears about a start late (Wi-Fi drop).
+  const START_SYNC_MS = 500;
+  let lastStartKey;                        // undefined until the first data arrives
+  function checkStartSound() {
+    const key = runKey();
+    if (lastStartKey !== undefined && key && key !== lastStartKey) {
+      const sinceStart = d.state.clock_remaining_ms - G.clockRemaining(d);   // ms since Start was pressed
+      if (sinceStart < START_SYNC_MS) setTimeout(() => { if (runKey() === key) playSound('start'); }, START_SYNC_MS - sinceStart);
+      else if (sinceStart < 5000) playSound('start');
+    }
+    lastStartKey = key;
+  }
+
+  // 30-second trumpet: scheduled for the exact moment the shared clock reaches 0:30, once per run.
+  // Not on reload, not when resuming below 30 s, not after a laptop wakes up long past it.
+  let lastRunningRem = null, thirtyKey = null;
+  function checkThirtySound(rem, running) {
+    const key = runKey();
+    if (running && key && thirtyKey !== key) {
+      if (rem > 30000 && rem - 30000 <= 300) {
+        thirtyKey = key;                    // due within the next tick: schedule it to the millisecond
+        setTimeout(() => { if (runKey() === key && G.clockRemaining(d) > 0) playSound('thirty'); }, rem - 30000);
+      } else if (lastRunningRem !== null && lastRunningRem > 30000 && rem <= 30000 && rem > 25000) {
+        thirtyKey = key;                    // missed the exact moment (busy/background tab): play now
+        playSound('thirty');
+      }
+    }
+    lastRunningRem = running ? rem : null;
+  }
 
   // ------------------------------------------------------------ live stream (YouTube)
   // Staff switch it on in the control app. Any screen can opt out (e.g. the projector in the room,
@@ -726,6 +834,7 @@
       const txt = G.formatTime(rem);
       if (txt !== lastTxt) { clockEl.textContent = txt; lastTxt = txt; }
       const running = d.state.clock_running && rem > 0;
+      checkThirtySound(rem, running);
       card.classList.toggle('running', running);
       card.classList.toggle('danger', running && rem <= 20000);
       card.classList.toggle('done', rem <= 0);
