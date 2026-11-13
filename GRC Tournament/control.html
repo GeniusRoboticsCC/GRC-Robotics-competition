@@ -155,6 +155,9 @@
   }
   .score-card::before { content: ''; position: absolute; left: 0; top: 0; bottom: 0; width: 6px; background: var(--c); }
   .score-card.dirty { border-color: var(--gold); background: #10224a; }
+  .score-card.syncing .score-input { color: var(--gold); }
+  .pill.scoring { background: rgba(255, 87, 103, .18); color: #ffb3bd; }
+  .pill.scoring::before { content: ''; width: 7px; height: 7px; border-radius: 50%; background: currentColor; animation: blink 1.2s steps(2, start) infinite; }
   .sc-meta { display: contents; }
   .sc-robot { grid-area: tag; display: flex; align-items: center; gap: 7px; font-size: 10.5px; letter-spacing: .12em; font-weight: 900; text-transform: uppercase; color: var(--c); white-space: nowrap; }
   .sc-team { grid-area: team; font-weight: 800; font-size: 17px; line-height: 1.2; overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; word-break: break-word; }
@@ -187,6 +190,8 @@
   .savebar .btn.primary { flex: 1 1 auto; max-width: 280px; min-height: 50px; font-size: 15px; }
   .savebar .dirty-flag { margin-right: auto; color: var(--gold); font-size: 12px; font-weight: 800; display: inline-flex; align-items: center; gap: 6px; }
   .savebar .dirty-flag::before { content: ''; width: 8px; height: 8px; border-radius: 50%; background: var(--gold); }
+  /* phones: the "Unsaved" / "Live · not final yet" note gets its own line above the buttons */
+  @media (max-width: 639px) { .savebar { flex-wrap: wrap; } .savebar .dirty-flag { flex: 1 1 100%; white-space: nowrap; } }
   @media (min-width: 1024px) { .savebar { position: static; background: none; border: 0; padding: 0; -webkit-backdrop-filter: none; backdrop-filter: none; } }
   .linkish { background: none; border: 0; padding: 0; color: var(--gold); font-weight: 800; text-decoration: underline; }
 
@@ -379,7 +384,8 @@
             <button class="btn ghost" type="button" id="clearScores">Clear</button>
             <button class="btn primary" type="button" id="saveScores">✓ Save scores</button>
           </div>
-          <p class="sub">Enter each robot's points as recorded by its judge (use 0 for no points). Saving updates the standings and the audience display instantly.</p>
+          <p class="sub">Tap <b>+ / −</b> to change a robot's points live on every screen. Typed numbers stay on this device until you save. Tap <b>Save scores</b> when the match ends to make the result final. Only final scores count in the standings.</p>
+          <div class="notice warn hidden" id="liveHint" style="margin-top:10px">+ / − will update every screen live once <b>supabase/live_scores.sql</b> has been run in the Supabase SQL Editor. Until then they only change this device until you tap Save.</div>
         </div>
       </div>
 
@@ -781,8 +787,10 @@
     const names = m.team_ids.map(t => G.teamName(d, t));
     const key = selected + '|' + names.join('|');
     $('editTitle').textContent = 'Match ' + selected;
-    $('editBadges').innerHTML =
-      (m.scores ? '<span class="pill done">✓ Scored</span>' : '<span class="pill">Not scored</span>') +
+    const status = G.isFinal(m) ? '<span class="pill done">✓ Final</span>'
+      : m.live_scores ? `<span class="pill scoring">Live${m.scores ? ' · update not saved' : ' scoring'}</span>`
+      : '<span class="pill">Not scored</span>';
+    $('editBadges').innerHTML = status +
       (selected === live
         ? '<span class="pill live">● On display</span>'
         : '<button class="btn small blue" type="button" id="showOnDisplay">◫ Show on display</button>');
@@ -810,35 +818,47 @@
       }).join('');
       if (!sameMatch) {
         edit.match = selected;
-        edit.baseline = m.scores;
+        edit.baseline = G.shownScores(m);     // running +/− score if there is one, otherwise the final result
         edit.dirty = [false, false, false, false];
         $('remoteNotice').classList.add('hidden');
         [0, 1, 2, 3].forEach(i => { $('score' + i).value = baseStr(i); });
       } else {
-        [0, 1, 2, 3].forEach(i => { $('score' + i).value = edit.dirty[i] ? keep[i] : baseStr(i); });
+        [0, 1, 2, 3].forEach(i => { $('score' + i).value = edit.dirty[i] || liveBusy(i) ? keep[i] : baseStr(i); });
       }
       edit.key = key;
     }
 
-    // Someone else saved this match: refresh untouched boxes, warn about touched ones
-    if (JSON.stringify(m.scores) !== JSON.stringify(edit.baseline)) {
-      const hadDirty = anyDirty();
-      edit.baseline = m.scores;
+    // Another device changed this match (+/− taps or a save): refresh untouched boxes live,
+    // keep this device's own taps that are still being sent, and warn only if a typed number clashes
+    const base = G.shownScores(m);
+    if (JSON.stringify(base) !== JSON.stringify(edit.baseline)) {
+      const prev = edit.baseline;
+      edit.baseline = base;
+      let clash = false;
       [0, 1, 2, 3].forEach(i => {
+        if (liveBusy(i)) return;
         const el = $('score' + i);
+        const changed = (prev ? prev[i] : null) !== (base ? base[i] : null);
         if (!edit.dirty[i]) el.value = baseStr(i);
-        else edit.dirty[i] = el.value !== baseStr(i);
+        else {
+          edit.dirty[i] = el.value !== baseStr(i);
+          if (changed && edit.dirty[i]) clash = true;
+        }
       });
-      $('remoteNotice').classList.toggle('hidden', !(hadDirty && anyDirty()));
+      if (clash) $('remoteNotice').classList.remove('hidden');
+      else if (!anyDirty()) $('remoteNotice').classList.add('hidden');
     }
+    $('liveHint').classList.toggle('hidden', !!d.live_supported);
     updateDirty();
   }
 
   function updateDirty() {
     [0, 1, 2, 3].forEach(i => { const c = $('card' + i); if (c) c.classList.toggle('dirty', edit.dirty[i]); });
-    $('dirtyFlag').classList.toggle('hidden', !anyDirty());
     const m = d && d.matches[selected - 1];
-    $('clearScores').disabled = !(m && m.scores) && !anyDirty();
+    const flag = $('dirtyFlag');
+    flag.textContent = anyDirty() ? 'Unsaved' : 'Live · not final yet';
+    flag.classList.toggle('hidden', !(anyDirty() || (m && m.live_scores)));
+    $('clearScores').disabled = !(m && (m.scores || m.live_scores)) && !anyDirty();
     $('saveScores').textContent = m && m.scores ? '✓ Update scores' : '✓ Save scores';
   }
   function setScore(slot, raw) {
@@ -857,9 +877,52 @@
     if (!b) return;
     const slot = Number(b.dataset.slot);
     const cur = parseInt($('score' + slot).value || '0', 10) || 0;
-    setScore(slot, Math.max(0, Math.min(9999, cur + Number(b.dataset.step))));
+    const v = Math.max(0, Math.min(9999, cur + Number(b.dataset.step)));
     buzz();
+    if (d && d.live_supported) liveStep(slot, v);   // + / − go live on every screen straight away
+    else setScore(slot, v);                          // database not updated yet: old behaviour (this device until Save)
   });
+
+  // ------------------------------------------------------------ live +/− scoring (see supabase/live_scores.sql)
+  // Each robot's taps are bundled for 150 ms, then its new total is sent. While a robot's taps are on their
+  // way, incoming updates don't overwrite its box, so the number never jumps back.
+  const liveTaps = { timer: [null, null, null, null], pending: [null, null, null, null], inflight: [0, 0, 0, 0], jobs: new Set() };
+  function liveBusy(i) { return liveTaps.pending[i] !== null || liveTaps.inflight[i] > 0; }
+  function liveStep(slot, v) {
+    $('score' + slot).value = String(v);
+    edit.dirty[slot] = false;
+    liveTaps.pending[slot] = { match: selected, value: v };
+    const card = $('card' + slot);
+    if (card) card.classList.add('syncing');
+    updateDirty();
+    clearTimeout(liveTaps.timer[slot]);
+    liveTaps.timer[slot] = setTimeout(() => flushLive(slot), 150);
+  }
+  function flushLive(slot) {
+    const p = liveTaps.pending[slot];
+    liveTaps.timer[slot] = null;
+    if (!p) return;
+    liveTaps.pending[slot] = null;
+    liveTaps.inflight[slot]++;
+    const job = G.setLiveScore(p.match, slot, p.value)
+      .catch(err => {
+        G.toast(err.message, 'error');
+        if (edit.match === p.match) edit.dirty[slot] = true;   // keep the number on screen so Save still sends it
+      })
+      .finally(() => {
+        liveTaps.inflight[slot]--;
+        liveTaps.jobs.delete(job);
+        const card = $('card' + slot);
+        if (card && !liveBusy(slot)) card.classList.remove('syncing');
+        if (d) updateDirty();
+      });
+    liveTaps.jobs.add(job);
+  }
+  // Send any taps still waiting and let them finish, so a Save or Clear is always the last word
+  async function settleLive() {
+    [0, 1, 2, 3].forEach(i => { if (liveTaps.timer[i]) { clearTimeout(liveTaps.timer[i]); flushLive(i); } });
+    await Promise.allSettled([...liveTaps.jobs]);
+  }
   $('scoreCards').addEventListener('keydown', e => {
     if (e.key !== 'Enter' || !e.target.matches('.score-input')) return;
     e.preventDefault();
@@ -877,7 +940,7 @@
     if (nums.some(n => !Number.isInteger(n) || n < 0 || n > 9999)) { G.toast('Scores must be whole numbers from 0 to 9999.', 'error'); return; }
     const match = selected;
     const wasScored = !!d.matches[match - 1].scores;
-    const ok = await busy($('saveScores'), () => G.saveScores(match, nums));
+    const ok = await busy($('saveScores'), async () => { await settleLive(); await G.saveScores(match, nums); });
     if (!ok) return;
     if (document.activeElement && document.activeElement.blur) document.activeElement.blur();
     edit.dirty = [false, false, false, false];
@@ -890,14 +953,16 @@
 
   $('clearScores').onclick = async e => {
     const m = d.matches[selected - 1];
-    if (!m.scores) {
+    if (!m.scores && !m.live_scores) {
       edit.dirty = [false, false, false, false];
       [0, 1, 2, 3].forEach(i => { $('score' + i).value = ''; });
       updateDirty();
       return;
     }
-    if (!confirm('Clear the saved scores for Match ' + selected + '? It will be removed from the standings.')) return;
-    const ok = await busy(e.currentTarget, () => G.saveScores(selected, null));
+    const what = m.scores ? 'the saved scores for Match ' + selected + '? It will be removed from the standings.'
+      : 'the live scores for Match ' + selected + '? Every screen goes back to no score.';
+    if (!confirm('Clear ' + what)) return;
+    const ok = await busy(e.currentTarget, async () => { await settleLive(); await G.saveScores(selected, null); });
     if (ok) {
       edit.dirty = [false, false, false, false];
       [0, 1, 2, 3].forEach(i => { $('score' + i).value = ''; });

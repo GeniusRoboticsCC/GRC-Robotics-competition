@@ -105,10 +105,13 @@ Share the **schedule.html** link, or print a QR code of it for the venue. On a p
 
 1. **Score** tab: the top card shows which match is **on the audience display**. Use **‹ ›** to change it.
 2. Tap **▶ Start**. The 3‑minute clock runs on every screen. **Pause** and **Reset** work from any device.
-3. When time is up, enter the four robots' points (type them or use **− / +**) and tap **Save scores**. The projector and standings update right away.
-4. Tap **›** to put the next match on screen. The button pulses once the current match has been scored.
+3. **During the match**, tap **+ / −** on a robot as it scores. Each tap shows up on the projector and the schedule page within about a second, marked **Live scoring**. Two phones can score different robots at the same time.
+4. **When time is up**, check the four numbers and tap **Save scores**. You can also type numbers and then tap Save. Saving makes the result **final**: the standings and awards update and the "Match winner" celebration plays. A half-played match never counts in the standings.
+5. Tap **›** to put the next match on screen. The button pulses once the current match has been scored.
 
-**Fixing a mistake.** Tap the match number, change the points, and tap **Update scores**. Every change is logged with its time and its before and after scores. To see the log, run this in the Supabase SQL Editor:
+> **One-time setup for live + / −:** in Supabase open **SQL Editor → New query**, paste all of `supabase/live_scores.sql` and click **Run**. It's safe to run again. Until then, + / − only change the phone you're using, until you tap Save.
+
+**Fixing a mistake.** Tap the match number, change the points (with + / − or by typing), and tap **Update scores**. The screens show the changed numbers as live until you tap Update, and the standings keep the old final result until then. Every saved change is logged with its time and its before and after scores. To see the log, run this in the Supabase SQL Editor:
 ```sql
 select * from public.score_history order by changed_at desc;
 ```
@@ -174,6 +177,8 @@ Good to know:
 | Light stays 🟠 **Live · polling** | Venue Wi‑Fi may block live connections. Updates still arrive every 5 seconds. A phone hotspot usually fixes it |
 | Keep-alive run is red ❌ | Check the two secrets are spelled exactly `SUPABASE_URL` and `SUPABASE_ANON_KEY`. If the project already paused, click **Restore** in Supabase |
 | Live stream panel says "One-time setup" | Run `supabase/live_stream.sql` in the SQL Editor, then reload the staff page |
+| Score tab says "+ / − will update every screen live once…" | Run `supabase/live_scores.sql` in the SQL Editor, then reload the staff page |
+| Screen still says **Live scoring** after the match | Someone tapped + / − but didn't save. Open that match and tap **Save scores** or **Update scores** |
 | Video box is black or says "Video unavailable" | Check the stream is actually live in YouTube Studio. If you restarted it, paste the new link. In the stream's settings, make sure **Allow embedding** is on |
 
 ---
@@ -193,6 +198,7 @@ assets/logo*.png, icon*  GRC logo (plus a light version for dark backgrounds) an
 supabase/schema.sql      database, security rules and functions (already run on your project)
 supabase/field_release.sql   optional: "Release balls" button + ESP32 servo (see esp32/README.md)
 supabase/live_stream.sql     optional: YouTube live stream on the audience display (see "Live stream" above)
+supabase/live_scores.sql     live + / − scoring on every screen (see "On the day" above)
 esp32/                   optional: ESP32 program that opens the ball gate, with a step-by-step guide
 .github/workflows/keep-alive.yml   daily ping so Supabase never pauses
 ```

@@ -86,6 +86,9 @@
 
   /* states */
   .mcard.final .mc-pill { background: rgba(41, 199, 132, .16); color: #8ff0c2; }
+  /* live +/− scoring: running points in pink until the result is saved as final */
+  .mcard.scoring .mc-pill { background: rgba(255, 87, 103, .2); color: #ffb3bd; }
+  .mc-team.lv .mc-pts { color: #ffb3bd; }
   .mcard.next { border-style: dashed; border-color: #4a7bd0; }
   .mcard.next .mc-pill { background: rgba(68, 140, 255, .18); color: #a9c8ff; }
   .mcard.live { border: 2px solid var(--gold); box-shadow: 0 0 0 1px rgba(255, 204, 47, .25), 0 0 46px -10px rgba(255, 204, 47, .6); }
@@ -281,7 +284,8 @@
       const p = G.matchPhase(d, m.id);
       return { cls: 'live' + (p.key === 'awaiting' ? ' awaiting' : ''), phase: p.key, label: p.key === 'final' ? '✓ Final' : p.key === 'live' ? 'Now playing' : p.label };
     }
-    if (m.scores) return { cls: 'final', phase: 'final', label: '✓ Final' };
+    if (G.isFinal(m)) return { cls: 'final', phase: 'final', label: '✓ Final' };
+    if (m.live_scores) return { cls: 'scoring', phase: 'scoring', label: 'Live scoring' };
     if (m.id === cur + 1) return { cls: 'next', phase: 'next', label: 'Up next' };
     return { cls: '', phase: 'upcoming', label: m.id < cur ? 'Not scored' : 'Upcoming' };
   }
@@ -297,19 +301,21 @@
 
     $('sched').innerHTML = d.matches.map(m => {
       const s = stateOf(m);
-      const top = m.scores ? Math.max.apply(null, m.scores) : null;
+      const final = G.isFinal(m);
+      const shown = G.shownScores(m);            // running +/− score while live scoring, else the final result
+      const top = final ? Math.max.apply(null, m.scores) : null;
       const mineCls = team && !m.team_ids.includes(team) ? ' dim' : '';
-      const changed = lastScored.has(m.id) && lastScored.get(m.id) !== JSON.stringify(m.scores) && m.scores;
+      const changed = lastScored.has(m.id) && lastScored.get(m.id) !== JSON.stringify(m.scores) && final;
       const rows = m.team_ids.map((t, j) => {
         const c = G.COLORS[m.colors[j]];
-        const win = m.scores && m.scores[j] === top && top > 0;
-        return `<li class="mc-team${win ? ' win' : ''}${team === t ? ' me' : ''}" style="--c:${c.hex}" title="${c.name} robot · ${c.material}">
+        const win = final && m.scores[j] === top && top > 0;
+        return `<li class="mc-team${win ? ' win' : ''}${shown && !final ? ' lv' : ''}${team === t ? ' me' : ''}" style="--c:${c.hex}" title="${c.name} robot · ${c.material}">
           <i class="dot"></i><span class="mc-col">${c.name}</span>
           <span class="mc-name">${esc(G.teamName(d, t))}</span>
-          <b class="mc-pts">${m.scores ? m.scores[j] : ''}</b></li>`;
+          <b class="mc-pts">${shown ? shown[j] : ''}</b></li>`;
       }).join('');
       return `<article class="mcard ${s.cls}${mineCls}${changed ? ' flash' : ''}" id="match-${m.id}" data-phase="${s.phase}">
-        <div class="mc-head"><span class="mc-no">Match ${m.id}</span><span class="mc-pill" data-pill>${s.label}${m.id === d.state.current_match && !m.scores ? ' <span class="t" data-ck></span>' : ''}</span></div>
+        <div class="mc-head"><span class="mc-no">Match ${m.id}</span><span class="mc-pill" data-pill>${s.label}${m.id === d.state.current_match && !final ? ' <span class="t" data-ck></span>' : ''}</span></div>
         <ul class="mc-teams">${rows}</ul>
       </article>`;
     }).join('');

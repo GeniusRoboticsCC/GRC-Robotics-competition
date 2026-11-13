@@ -58,6 +58,8 @@
   .phase[data-k="live"]::before { animation: livepulse 1.6s infinite; }
   .phase[data-k="final"] { background: rgba(255, 204, 47, .18); color: var(--gold); }
   .phase[data-k="awaiting"] { background: rgba(255, 120, 80, .18); color: #ffb08f; }
+  .phase[data-k="scoring"] { background: rgba(255, 87, 103, .2); color: #ffb3bd; }
+  .phase[data-k="scoring"]::before { animation: blink 1.2s steps(2, start) infinite; }
 
   .robots { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
   .robot {
@@ -77,6 +79,10 @@
   .robot.winner { border-color: var(--gold); box-shadow: 0 0 0 2px var(--gold), 0 0 40px -6px rgba(255, 204, 47, .55); }
   .robot .crown { align-self: center; padding: 4px 10px; border-radius: 999px; background: var(--gold); color: var(--gold-ink); font-size: 11px; font-weight: 900; letter-spacing: .08em; text-transform: uppercase; white-space: nowrap; }
   .robot.pop b { animation: pop .7s cubic-bezier(.2, 1.6, .4, 1); }
+  /* live +/− scoring: the robot whose points just changed gives a quick gold bump */
+  .robot.bump b { display: inline-block; animation: bump .6s ease-out; }
+  @keyframes bump { 0% { transform: scale(1.35); color: var(--gold); text-shadow: 0 0 18px rgba(255, 204, 47, .8); } 100% { transform: none; } }
+  .robot-score em.live-pts { color: #ffb3bd; }
   @keyframes pop { 0% { transform: scale(.4); opacity: 0; } 100% { transform: none; opacity: 1; } }
 
   .next { display: flex; align-items: center; gap: 10px 14px; flex-wrap: wrap; margin-top: 12px; padding: 10px 12px; border-radius: 12px; background: rgba(255, 255, 255, .03); border: 1px dashed #2c4a78; }
@@ -430,7 +436,7 @@
   'use strict';
   const G = window.GRC, $ = G.$, esc = G.esc;
   let d = null;
-  let lastMatch = null, lastScoresSig = '';
+  let lastMatch = null, lastScoresSig = '', lastShown = null;
   let lastTotals = new Map();
 
   // ------------------------------------------------------------ event text
@@ -495,24 +501,31 @@
 
     $('nowTitle').innerHTML = 'Match ' + cur + '<small>of ' + G.MATCH_COUNT + '</small>';
 
-    // Robot cards
-    const sig = cur + '|' + JSON.stringify(m.scores);
-    const reveal = m.scores && lastMatch === cur && sig !== lastScoresSig;
-    const top = m.scores ? Math.max.apply(null, m.scores) : null;
+    // Robot cards: the running +/− score while staff are live scoring, the final result once saved.
+    // "Match winner" only appears for a final (saved) result.
+    const shown = G.shownScores(m);
+    const final = G.isFinal(m);
+    const sameMatch = lastMatch === cur;
+    const sig = cur + '|' + JSON.stringify(shown) + '|' + final;
+    const reveal = final && sameMatch && sig !== lastScoresSig;      // whole row pops when the result is saved
+    const top = final ? Math.max.apply(null, m.scores) : null;
     $('robots').innerHTML = m.team_ids.map((t, j) => {
       const c = G.COLORS[m.colors[j]];
-      const win = m.scores && m.scores[j] === top && top > 0;
-      const label = win ? '<span class="crown">★ <span class="long">Match </span>winner</span>' : m.scores ? '<em>points</em>' : '<em>&nbsp;</em>';
-      return `<div class="robot${win ? ' winner' : ''}${reveal ? ' pop' : ''}" style="--c:${c.hex}">
+      const win = final && m.scores[j] === top && top > 0;
+      const bump = !reveal && sameMatch && shown && lastShown && shown[j] !== lastShown[j];   // this robot just scored
+      const label = win ? '<span class="crown">★ <span class="long">Match </span>winner</span>'
+        : final ? '<em>points</em>' : shown ? '<em class="live-pts">live</em>' : '<em>&nbsp;</em>';
+      return `<div class="robot${win ? ' winner' : ''}${reveal ? ' pop' : ''}${bump ? ' bump' : ''}" style="--c:${c.hex}">
         <div class="robot-meta">
           <div class="robot-tag"><span class="dot"></span><span>${c.name}<span class="long"> robot</span> · ${c.material}</span></div>
           <div class="robot-team">${esc(G.teamName(d, t))}</div>
         </div>
-        <div class="robot-score">${m.scores ? `<b>${m.scores[j]}</b>` : '<b class="empty">—</b>'}${label}</div>
+        <div class="robot-score">${shown ? `<b>${shown[j]}</b>` : '<b class="empty">—</b>'}${label}</div>
       </div>`;
     }).join('');
     lastMatch = cur;
     lastScoresSig = sig;
+    lastShown = shown;
 
     // Up next
     const nx = d.matches[cur];

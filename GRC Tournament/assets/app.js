@@ -121,6 +121,8 @@
     const msg = (e && (e.message || e.error_description || e.msg)) || String(e);
     if (/set_live_stream/.test(msg) && /could not find|does not exist/i.test(msg))
       return new Error('The live stream needs a one-time database update: run supabase/live_stream.sql in the Supabase SQL Editor.');
+    if (/set_live_score/.test(msg) && /could not find|does not exist/i.test(msg))
+      return new Error('Live +/− scoring needs a one-time database update: run supabase/live_scores.sql in the Supabase SQL Editor.');
     if ((e && e.code === '42501') || /not authori[sz]ed|permission denied/i.test(msg))
       return new Error('This account is not allowed to make changes. Ask the organiser to add your email to the staff list.');
     if (/invalid login credentials/i.test(msg)) return new Error('Wrong email or password.');
@@ -162,7 +164,11 @@
       colors: (m.colors || []).map(Number),
       scores: Array.isArray(m.scores) ? m.scores.map(Number) : null,
       scored_at: m.scored_at || null,
+      // running score from the +/− buttons (not final until "Save scores"); see supabase/live_scores.sql
+      live_scores: Array.isArray(m.live_scores) && m.live_scores.length === 4 ? m.live_scores.map(Number) : null,
     })).sort((a, b) => a.id - b.id);
+    // false until supabase/live_scores.sql has been run (+/− then only change this device until Save)
+    const live_supported = MODE === 'demo' || (raw.matches || []).some(m => Object.prototype.hasOwnProperty.call(m, 'live_scores'));
     const s = raw.state || {};
     const duration = Number(s.clock_duration_ms) || CLOCK_MS;
     const state = {
@@ -176,7 +182,7 @@
       stream_source: typeof s.stream_source === 'string' && STREAM_RE.test(s.stream_source) ? s.stream_source : null,
       stream_enabled: !!s.stream_enabled,
     };
-    return { teams, matches, state };
+    return { teams, matches, state, live_supported };
   }
 
   // ---------------------------------------------------------------- status
@@ -251,7 +257,8 @@
     async function fetchAll() {
       const [t, m, s] = await Promise.all([
         sb.from('teams').select('id,name').order('id'),
-        sb.from('matches').select('id,team_ids,colors,scores,scored_at').order('id'),
+        // '*' so the optional live_scores column comes through once live_scores.sql is run (and nothing breaks before)
+        sb.from('matches').select('*').order('id'),
         // '*' so the optional live-stream columns come through once live_stream.sql is run (and nothing breaks before)
         sb.from('tournament_state').select('*').limit(1).maybeSingle(),
       ]);
@@ -331,7 +338,7 @@
     const KEY = 'grc_tournament_demo_v2';
     const blank = () => ({
       teams: Array.from({ length: TEAM_COUNT }, (_, i) => ({ id: i + 1, name: 'Team ' + (i + 1) })),
-      matches: FIXTURES.map(([t, c], i) => ({ id: i + 1, team_ids: t, colors: c, scores: null, scored_at: null })),
+      matches: FIXTURES.map(([t, c], i) => ({ id: i + 1, team_ids: t, colors: c, scores: null, scored_at: null, live_scores: null })),
       state: { current_match: 1, clock_running: false, clock_ends_at: null, clock_remaining_ms: CLOCK_MS, clock_duration_ms: CLOCK_MS, stream_source: null, stream_enabled: false },
     });
     let memory = null;
@@ -361,6 +368,17 @@
         const m = d.matches[p_match - 1];
         m.scores = p_scores;
         m.scored_at = p_scores ? new Date().toISOString() : null;
+        m.live_scores = null;              // saving the final result ends live scoring (same as the database trigger)
+      },
+      set_live_score(d, { p_match, p_slot, p_value }) {
+        checkMatch(p_match);
+        if (!Number.isInteger(p_slot) || p_slot < 0 || p_slot > 3) throw new Error('Robot must be 0, 1, 2 or 3');
+        if (!Number.isInteger(p_value) || p_value < 0 || p_value > 9999) throw new Error('Points must be a whole number from 0 to 9999');
+        const m = d.matches[p_match - 1];
+        const v = (m.live_scores || m.scores || [0, 0, 0, 0]).slice();
+        v[p_slot] = p_value;
+        m.live_scores = v;
+        return v;
       },
       save_team_names(d, { p_names }) {
         if (!Array.isArray(p_names) || p_names.length !== TEAM_COUNT) throw new Error('Provide exactly 10 team names');
@@ -534,14 +552,22 @@
     return s.clock_remaining_ms;
   }
 
-  // Where a match is right now: final / in progress / paused / awaiting scores / on deck / upcoming
+  // The scores to show for a match: the running +/− score while one exists, otherwise the final result
+  const shownScores = m => (m && (m.live_scores || m.scores)) || null;
+  // Final = saved with "Save scores" and no running score on top (only final scores count in the standings)
+  const isFinal = m => !!(m && m.scores && !m.live_scores);
+
+  // Where a match is right now: final / in progress / live scoring / paused / awaiting scores / on deck / upcoming
   function matchPhase(d, matchId) {
     const m = d.matches[matchId - 1];
-    if (m && m.scores) return { key: 'final', label: 'Final scores' };
-    if (d.state.current_match !== matchId) return { key: 'upcoming', label: 'Not scored yet' };
+    if (isFinal(m)) return { key: 'final', label: 'Final scores' };
+    const scoring = !!(m && m.live_scores);
+    if (d.state.current_match !== matchId)
+      return scoring ? { key: 'scoring', label: 'Live scoring' } : { key: 'upcoming', label: 'Not scored yet' };
     const rem = clockRemaining(d);
     if (d.state.clock_running && rem > 0) return { key: 'live', label: 'In progress' };
-    if (rem <= 0) return { key: 'awaiting', label: 'Awaiting scores' };
+    if (rem <= 0) return { key: 'awaiting', label: scoring ? 'Awaiting final scores' : 'Awaiting scores' };
+    if (scoring) return { key: 'scoring', label: 'Live scoring' };
     if (rem < d.state.clock_duration_ms) return { key: 'paused', label: 'Clock paused' };
     return { key: 'ondeck', label: 'On deck' };
   }
@@ -653,6 +679,9 @@
     // Live stream (YouTube, see supabase/live_stream.sql)
     setLiveStream: (source, enabled) => mutate('set_live_stream', { p_source: source || null, p_enabled: !!enabled }),
     parseStream, streamEmbedUrl, streamWatchUrl,
+    // Live +/− scoring (see supabase/live_scores.sql). slot 0–3 = the match's four robots
+    setLiveScore: (match, slot, value) => mutate('set_live_score', { p_match: match, p_slot: slot, p_value: value }),
+    shownScores, isFinal,
     exportBackup, parseBackup,
     standings, standingsWithMovement, scoredCount, teamName, clockRemaining, matchPhase, highScore, awards, formatAvg, formatTime, parseTime,
     esc, toast, keepAwake, $,
