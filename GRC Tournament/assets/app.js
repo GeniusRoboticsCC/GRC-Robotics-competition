@@ -83,8 +83,44 @@
     return String(Math.floor(n / 60)).padStart(2, '0') + ':' + String(n % 60).padStart(2, '0');
   }
 
+  // ---------------------------------------------------------------- live stream (YouTube)
+  // The database stores only a YouTube video ID (11 chars) or channel ID (UC + 22 chars).
+  const STREAM_RE = /^([A-Za-z0-9_-]{11}|UC[A-Za-z0-9_-]{22})$/;
+  const isChannel = src => src.length === 24 && src.startsWith('UC');
+
+  // Turn whatever staff paste (watch link, youtu.be, /live/, Studio link, embed, channel link) into an ID
+  function parseStream(input) {
+    const s = String(input || '').trim();
+    if (!s) return null;
+    if (STREAM_RE.test(s)) return s;
+    let u;
+    try { u = new URL(/^https?:\/\//i.test(s) ? s : 'https://' + s); }
+    catch (e) { throw new Error('Paste the YouTube link of your stream (Share → Copy link).'); }
+    const host = u.hostname.replace(/^(www|m)\./, '');
+    const parts = u.pathname.split('/').filter(Boolean);
+    let id = null;
+    if (host === 'youtu.be') id = parts[0];
+    else if (/(^|\.)youtube(-nocookie)?\.com$/.test(host)) {
+      if (u.searchParams.get('v')) id = u.searchParams.get('v');
+      else if (parts[0] === 'embed' && parts[1] === 'live_stream') id = u.searchParams.get('channel');
+      else if (['live', 'embed', 'shorts', 'v', 'video'].includes(parts[0])) id = parts[1];   // video/ID = YouTube Studio
+      else if (parts[0] === 'channel') id = parts[1];
+      else if (parts[0] && parts[0].startsWith('@'))
+        throw new Error('That is your channel name link. Open the live stream itself and use Share → Copy link.');
+    }
+    if (id && STREAM_RE.test(id)) return id;
+    throw new Error("That doesn't look like a YouTube stream link. In YouTube use Share → Copy link.");
+  }
+  const streamEmbedUrl = src => {
+    const p = 'autoplay=1&mute=1&playsinline=1&rel=0';
+    return isChannel(src) ? `https://www.youtube.com/embed/live_stream?channel=${src}&${p}` : `https://www.youtube.com/embed/${src}?${p}`;
+  };
+  const streamWatchUrl = src => isChannel(src) ? `https://www.youtube.com/channel/${src}/live` : `https://www.youtube.com/watch?v=${src}`;
+
   function friendlyError(e) {
     const msg = (e && (e.message || e.error_description || e.msg)) || String(e);
+    if (/set_live_stream/.test(msg) && /could not find|does not exist/i.test(msg))
+      return new Error('The live stream needs a one-time database update: run supabase/live_stream.sql in the Supabase SQL Editor.');
     if ((e && e.code === '42501') || /not authori[sz]ed|permission denied/i.test(msg))
       return new Error('This account is not allowed to make changes. Ask the organiser to add your email to the staff list.');
     if (/invalid login credentials/i.test(msg)) return new Error('Wrong email or password.');
@@ -135,6 +171,10 @@
       clock_ends_at: s.clock_ends_at || null,
       clock_remaining_ms: Number.isFinite(Number(s.clock_remaining_ms)) && s.clock_remaining_ms !== null ? Number(s.clock_remaining_ms) : duration,
       clock_duration_ms: duration,
+      // false until supabase/live_stream.sql has been run (the columns don't exist yet)
+      stream_supported: MODE === 'demo' || Object.prototype.hasOwnProperty.call(s, 'stream_source'),
+      stream_source: typeof s.stream_source === 'string' && STREAM_RE.test(s.stream_source) ? s.stream_source : null,
+      stream_enabled: !!s.stream_enabled,
     };
     return { teams, matches, state };
   }
@@ -212,7 +252,8 @@
       const [t, m, s] = await Promise.all([
         sb.from('teams').select('id,name').order('id'),
         sb.from('matches').select('id,team_ids,colors,scores,scored_at').order('id'),
-        sb.from('tournament_state').select('current_match,clock_running,clock_ends_at,clock_remaining_ms,clock_duration_ms').limit(1).maybeSingle(),
+        // '*' so the optional live-stream columns come through once live_stream.sql is run (and nothing breaks before)
+        sb.from('tournament_state').select('*').limit(1).maybeSingle(),
       ]);
       for (const r of [t, m, s]) if (r.error) throw r.error;
       return { teams: t.data, matches: m.data, state: s.data };
@@ -291,7 +332,7 @@
     const blank = () => ({
       teams: Array.from({ length: TEAM_COUNT }, (_, i) => ({ id: i + 1, name: 'Team ' + (i + 1) })),
       matches: FIXTURES.map(([t, c], i) => ({ id: i + 1, team_ids: t, colors: c, scores: null, scored_at: null })),
-      state: { current_match: 1, clock_running: false, clock_ends_at: null, clock_remaining_ms: CLOCK_MS, clock_duration_ms: CLOCK_MS },
+      state: { current_match: 1, clock_running: false, clock_ends_at: null, clock_remaining_ms: CLOCK_MS, clock_duration_ms: CLOCK_MS, stream_source: null, stream_enabled: false },
     });
     let memory = null;
     const read = () => {
@@ -338,7 +379,16 @@
         } else if (p_action === 'reset') resetClock(s);
         else throw new Error('Unknown clock action');
       },
-      reset_tournament(d) { const b = blank(); d.teams = b.teams; d.matches = b.matches; d.state = b.state; },
+      reset_tournament(d) {
+        const b = blank(), keep = { stream_source: d.state.stream_source || null, stream_enabled: !!d.state.stream_enabled };
+        d.teams = b.teams; d.matches = b.matches; d.state = Object.assign(b.state, keep);
+      },
+      set_live_stream(d, { p_source, p_enabled }) {
+        const v = String(p_source || '').trim() || null;
+        if (v && !STREAM_RE.test(v)) throw new Error('That is not a valid YouTube video or channel ID');
+        d.state.stream_source = v;
+        d.state.stream_enabled = !!p_enabled && !!v;
+      },
       restore_tournament(d, { p_names, p_scores, p_current }) {
         if (!Array.isArray(p_scores) || p_scores.length !== MATCH_COUNT) throw new Error('Backup must contain exactly 15 matches');
         fns.save_team_names(d, { p_names });
@@ -600,6 +650,9 @@
     // Ball release (ESP32 servo, see esp32/README.md)
     releaseItems: () => call('release_items'),
     dropperStatus: () => call('dropper_status'),
+    // Live stream (YouTube, see supabase/live_stream.sql)
+    setLiveStream: (source, enabled) => mutate('set_live_stream', { p_source: source || null, p_enabled: !!enabled }),
+    parseStream, streamEmbedUrl, streamWatchUrl,
     exportBackup, parseBackup,
     standings, standingsWithMovement, scoredCount, teamName, clockRemaining, matchPhase, highScore, awards, formatAvg, formatTime, parseTime,
     esc, toast, keepAwake, $,

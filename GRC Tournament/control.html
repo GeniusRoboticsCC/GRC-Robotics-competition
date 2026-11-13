@@ -444,6 +444,21 @@
       </div>
 
       <div class="stack">
+        <div class="panel" id="streamPanel">
+          <div class="row" style="margin-bottom:6px">
+            <div class="section-title" style="margin:0">Live stream</div>
+            <span class="pill" id="streamPill">Off</span>
+          </div>
+          <p class="sub" style="margin:0 0 12px">Start your stream in YouTube Studio, then paste its link here (YouTube: <b>Share → Copy link</b>). It plays on the audience display, and the schedule page gets a <b>Watch live</b> button.</p>
+          <label class="lbl" for="streamInput">YouTube link</label>
+          <input class="field" id="streamInput" type="url" inputmode="url" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="https://youtube.com/live/…">
+          <div class="tool-list" style="margin-top:12px">
+            <button class="btn primary" type="button" id="streamOn">● Show stream on the website</button>
+            <button class="btn" type="button" id="streamOff">Hide stream</button>
+          </div>
+          <div class="notice" id="streamNote" style="margin-top:12px"></div>
+        </div>
+
         <div class="panel">
           <div class="section-title">Share these links</div>
           <div class="stack" style="gap:10px">
@@ -495,7 +510,7 @@
     catch (e) { G.toast(e.message || String(e), 'error'); return false; }
     finally {
       if (btn) { delete btn.dataset.busy; btn.disabled = false; }
-      if (d) { renderLive(); updateDirty(); if (rosterBuilt) updateRosterDirty(); }
+      if (d) { renderLive(); updateDirty(); if (rosterBuilt) updateRosterDirty(); renderStream(); }
     }
   }
   const anyDirty = () => edit.dirty.some(Boolean);
@@ -597,6 +612,7 @@
     renderTables();
     renderFixtures();
     renderRoster();
+    renderStream();
     tick();
   });
 
@@ -1025,6 +1041,47 @@
     try { await navigator.clipboard.writeText(text); G.toast('Link copied'); }
     catch (e) { window.prompt('Copy this link:', text); }
   });
+
+  // ------------------------------------------------------------ live stream (YouTube, see supabase/live_stream.sql)
+  let streamDirty = false;
+  function renderStream() {
+    if (!d) return;
+    const s = d.state, on = !!(s.stream_enabled && s.stream_source);
+    const pill = $('streamPill'), note = $('streamNote'), inp = $('streamInput');
+    pill.className = 'pill' + (on ? ' live' : '');
+    pill.textContent = on ? '● On the website' : s.stream_source ? 'Hidden' : 'Off';
+    if (!s.stream_supported) {
+      note.className = 'notice warn';
+      note.innerHTML = 'One-time setup: in Supabase open <b>SQL Editor</b>, paste the file <b>supabase/live_stream.sql</b> and click <b>Run</b>. Then reload this page.';
+    } else if (on) {
+      note.className = 'notice';
+      note.innerHTML = 'Playing on the audience display (muted; viewers can unmute). ' +
+        `<a href="${esc(G.streamWatchUrl(s.stream_source))}" target="_blank" rel="noopener">Check it on YouTube ↗</a><br>` +
+        `For the projector in the room, open <b>${esc(pageUrl('display.html'))}?video=off</b> to keep that screen scores-only.`;
+    } else {
+      note.className = 'notice';
+      note.textContent = s.stream_source
+        ? 'The link is saved but hidden from the website. Tap "Show stream" to put it back.'
+        : 'No stream yet. In YouTube Studio click Create → Go live, then paste the stream link here.';
+    }
+    if (!streamDirty && document.activeElement !== inp) inp.value = s.stream_source ? G.streamWatchUrl(s.stream_source) : '';
+    if (!$('streamOff').dataset.busy) $('streamOff').disabled = !on;
+  }
+  $('streamInput').addEventListener('input', () => { streamDirty = true; });
+  $('streamInput').addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); $('streamOn').click(); } });
+  $('streamOn').onclick = async e => {
+    let src;
+    try { src = G.parseStream($('streamInput').value) || (d && d.state.stream_source); }
+    catch (err) { G.toast(err.message, 'error'); $('streamInput').focus(); return; }
+    if (!src) { G.toast('Paste your YouTube live link first.', 'error'); $('streamInput').focus(); return; }
+    const ok = await busy(e.currentTarget, () => G.setLiveStream(src, true));
+    if (ok) { streamDirty = false; $('streamInput').blur(); renderStream(); G.toast('Live stream is showing on the website ✓'); }
+  };
+  $('streamOff').onclick = async e => {
+    if (!d) return;
+    const ok = await busy(e.currentTarget, () => G.setLiveStream(d.state.stream_source, false));
+    if (ok) G.toast('Live stream hidden from the website.');
+  };
 
   // ------------------------------------------------------------ backup / restore / reset
   $('backupBtn').onclick = () => {

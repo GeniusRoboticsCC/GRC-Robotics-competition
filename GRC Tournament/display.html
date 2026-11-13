@@ -130,6 +130,17 @@
   .foot-row { display: flex; justify-content: space-between; gap: 10px 20px; flex-wrap: wrap; align-items: center; }
   .event-line { font-size: 12px; color: var(--muted-2); font-weight: 700; letter-spacing: .08em; text-transform: uppercase; }
 
+  /* ---------- live stream (YouTube) ---------- */
+  .stream { display: flex; flex-direction: column; gap: 8px; margin-bottom: 12px; min-height: 0; }
+  .stream-frame { position: relative; aspect-ratio: 16 / 9; border-radius: 14px; overflow: hidden; background: #000; border: 1px solid var(--line); }
+  .stream-frame iframe { position: absolute; inset: 0; width: 100%; height: 100%; border: 0; }
+  .stream-bar { display: flex; align-items: center; gap: 6px 14px; flex-wrap: wrap; font-size: 12px; color: var(--muted); }
+  .stream-bar .note { flex: 1 1 auto; }
+  .live-tag { display: inline-flex; align-items: center; gap: 6px; padding: 3px 9px; border-radius: 6px; background: var(--red); color: #fff; font-size: 11px; font-weight: 900; letter-spacing: .12em; text-transform: uppercase; }
+  .live-tag::before { content: ''; width: 7px; height: 7px; border-radius: 50%; background: #fff; animation: blink 1.2s steps(2, start) infinite; }
+  .stream-bar .ctl { padding: 4px 0; background: none; border: 0; color: var(--gold); font-weight: 800; text-decoration: none; cursor: pointer; transition: opacity .4s; }
+  body.idle .stream-bar .ctl { opacity: 0; pointer-events: none; }
+
   /* ---------- floating controls ---------- */
   .fab { position: fixed; right: 16px; bottom: calc(16px + var(--safe-b)); z-index: 20; display: flex; gap: 8px; transition: opacity .4s; }
   body.idle .fab { opacity: 0; pointer-events: none; }
@@ -181,6 +192,21 @@
     .bar { height: calc(var(--u) * .7); }
     .legend { font-size: calc(var(--u) * .95); }
     .event-line { font-size: calc(var(--u) * .9); }
+
+    /* With the live video: video fills the left panel, the four robots become one compact row */
+    .has-stream .now-head { margin-bottom: calc(var(--u) * .7); }
+    .has-stream .now-title { font-size: calc(var(--u) * 3.2); }
+    .has-stream .stream { flex: 1 1 auto; margin-bottom: calc(var(--u) * .9); gap: calc(var(--u) * .5); }
+    .has-stream .stream-frame { flex: 1 1 auto; min-height: 0; aspect-ratio: auto; border-radius: calc(var(--u) * 1); }
+    .has-stream .stream-bar, .has-stream .live-tag { font-size: calc(var(--u) * .85); }
+    .has-stream .robots { flex: 0 0 auto; height: calc(var(--u) * 8.5); grid-template-columns: repeat(4, minmax(0, 1fr)); grid-template-rows: minmax(0, 1fr); gap: calc(var(--u) * .8); }
+    .has-stream .robot { gap: 2px; padding: calc(var(--u) * .8) calc(var(--u) * .9) calc(var(--u) * .6); }
+    .has-stream .robot-tag { font-size: min(calc(var(--u) * .8), 12cqh); letter-spacing: .06em; white-space: nowrap; overflow: hidden; }
+    .has-stream .robot-team { font-size: min(calc(var(--u) * 1.45), 20cqh); -webkit-line-clamp: 1; }
+    .has-stream .robot-score b { font-size: min(calc(var(--u) * 3.2), 40cqh); }
+    .has-stream .robot-score em, .has-stream .robot .crown { font-size: min(calc(var(--u) * .75), 11cqh); }
+    .has-stream .next { display: none; }
+    .has-stream .robot .long { display: none; }   /* "Red · Metals", "★ winner" in the compact row */
   }
   @media (max-width: 560px) {
     .robots { grid-template-columns: 1fr; }
@@ -347,6 +373,19 @@
         </div>
         <span class="phase" id="phase" data-k="ondeck">On deck</span>
       </div>
+      <div class="stream hidden" id="stream">
+        <div class="stream-frame">
+          <iframe id="streamFrame" title="Live video of the arena" src="about:blank"
+            allow="autoplay; encrypted-media; picture-in-picture; fullscreen" allowfullscreen
+            referrerpolicy="strict-origin-when-cross-origin"></iframe>
+        </div>
+        <div class="stream-bar">
+          <span class="live-tag">Live video</span>
+          <span class="note">Video runs a few seconds behind the scores</span>
+          <a class="ctl" id="streamOpen" href="#" target="_blank" rel="noopener">Open in YouTube ↗</a>
+          <button class="ctl" type="button" id="videoHide">Hide video on this screen</button>
+        </div>
+      </div>
       <div class="robots" id="robots"></div>
       <div class="next" id="next"></div>
     </section>
@@ -377,6 +416,7 @@
 </div>
 
 <div class="fab">
+  <button class="btn small hidden" type="button" id="videoShow">▶ Show live video</button>
   <button class="btn small" type="button" id="fullBtn" title="Fullscreen (F)">⛶ Fullscreen</button>
 </div>
 <div class="banner error error-overlay hidden" id="errorBox" style="border-radius:12px"></div>
@@ -411,7 +451,42 @@
   });
 
   // ------------------------------------------------------------ render
-  G.on('data', nd => { d = nd; render(); tick(); checkWinners(); });
+  G.on('data', nd => { d = nd; renderStream(); render(); tick(); checkWinners(); });
+
+  // ------------------------------------------------------------ live stream (YouTube)
+  // Staff switch it on in the control app. Any screen can opt out (e.g. the projector in the room,
+  // where the video would lag behind the real arena): "Hide video on this screen" or display.html?video=off
+  const VIDEO_KEY = 'grc_video_hidden';
+  let videoHidden = (() => {
+    const q = new URLSearchParams(location.search).get('video');
+    if (q === 'off' || q === 'on') {
+      try { localStorage.setItem(VIDEO_KEY, q === 'off' ? '1' : '0'); } catch (e) {}
+      return q === 'off';
+    }
+    try { return localStorage.getItem(VIDEO_KEY) === '1'; } catch (e) { return false; }
+  })();
+  let streamSrc = null;
+  function renderStream() {
+    const s = d.state;
+    const on = !!(s.stream_enabled && s.stream_source);
+    const show = on && !videoHidden;
+    document.body.classList.toggle('has-stream', show);
+    $('stream').classList.toggle('hidden', !show);
+    $('videoShow').classList.toggle('hidden', !(on && videoHidden));
+    const want = show ? s.stream_source : null;
+    if (want !== streamSrc) {             // only touch the player when the stream changes, so it never restarts
+      streamSrc = want;
+      $('streamFrame').src = want ? G.streamEmbedUrl(want) : 'about:blank';
+      if (want) $('streamOpen').href = G.streamWatchUrl(want);
+    }
+  }
+  function setVideoHidden(v) {
+    videoHidden = v;
+    try { localStorage.setItem(VIDEO_KEY, v ? '1' : '0'); } catch (e) {}
+    if (d) { renderStream(); render(); }
+  }
+  $('videoHide').onclick = () => setVideoHidden(true);
+  $('videoShow').onclick = () => setVideoHidden(false);
 
   function render() {
     const cur = d.state.current_match;
@@ -427,10 +502,10 @@
     $('robots').innerHTML = m.team_ids.map((t, j) => {
       const c = G.COLORS[m.colors[j]];
       const win = m.scores && m.scores[j] === top && top > 0;
-      const label = win ? '<span class="crown">★ Match winner</span>' : m.scores ? '<em>points</em>' : '<em>&nbsp;</em>';
+      const label = win ? '<span class="crown">★ <span class="long">Match </span>winner</span>' : m.scores ? '<em>points</em>' : '<em>&nbsp;</em>';
       return `<div class="robot${win ? ' winner' : ''}${reveal ? ' pop' : ''}" style="--c:${c.hex}">
         <div class="robot-meta">
-          <div class="robot-tag"><span class="dot"></span>${c.name} robot · ${c.material}</div>
+          <div class="robot-tag"><span class="dot"></span><span>${c.name}<span class="long"> robot</span> · ${c.material}</span></div>
           <div class="robot-team">${esc(G.teamName(d, t))}</div>
         </div>
         <div class="robot-score">${m.scores ? `<b>${m.scores[j]}</b>` : '<b class="empty">—</b>'}${label}</div>

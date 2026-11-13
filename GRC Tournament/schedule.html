@@ -42,6 +42,10 @@
   .now-card.done .ck { color: #ff8a96; animation: blink 1s steps(2, start) infinite; }
   @keyframes blink { to { opacity: .3; } }
 
+  /* "Watch live" (shown while staff have the YouTube stream switched on) */
+  .watch-live { background: var(--red); border-color: #ff8a96; color: #fff; box-shadow: 0 8px 22px -10px rgba(255, 87, 103, .8); }
+  .watch-live::before { content: ''; width: 9px; height: 9px; border-radius: 50%; background: #fff; animation: blink 1.2s steps(2, start) infinite; }
+
   /* ---------- team finder ---------- */
   .finder { display: flex; align-items: center; gap: 10px 14px; flex-wrap: wrap; padding: 10px 14px; border-radius: 14px; background: rgba(15, 35, 75, .6); border: 1px solid var(--line); }
   .finder label { font-size: 11px; font-weight: 900; letter-spacing: .14em; text-transform: uppercase; color: var(--gold); white-space: nowrap; }
@@ -157,6 +161,7 @@
       <div class="d-title" id="evTitle">Resource Recovery <span>Schedule</span></div>
     </div>
     <span class="conn" id="conn" data-state="connecting"><i></i><span>Connecting…</span></span>
+    <a class="btn watch-live hidden" id="watchLive" href="#" target="_blank" rel="noopener">Watch live</a>
     <a class="now-card" id="nowCard" href="#" aria-label="Jump to the match being played">
       <div><small id="nowLabel">Now playing</small><span class="nm" id="nowMatch">Match 1</span></div>
       <span class="ck" id="clock">03:00</span>
@@ -283,6 +288,9 @@
 
   function render() {
     lastPhase = G.matchPhase(d, d.state.current_match).key;
+    const live = d.state.stream_enabled && d.state.stream_source;
+    $('watchLive').classList.toggle('hidden', !live);
+    if (live) $('watchLive').href = G.streamWatchUrl(d.state.stream_source);
     fillFilter();
     renderSummary();
     const done = G.scoredCount(d);

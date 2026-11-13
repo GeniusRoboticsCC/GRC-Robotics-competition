@@ -1,0 +1,54 @@
+# Keeps the free Supabase project awake.
+# Supabase pauses free projects after 7 days without activity; this pings the
+# database every day so that never happens.
+#
+# Setup (once): GitHub repo → Settings → Secrets and variables → Actions →
+#   New repository secret  SUPABASE_URL       = https://xxxx.supabase.co
+#   New repository secret  SUPABASE_ANON_KEY  = your anon / publishable key
+# Then Actions tab → "Keep Supabase awake" → Run workflow, to test it.
+
+name: Keep Supabase awake
+
+on:
+  schedule:
+    - cron: '17 6 * * *'     # every day at 06:17 UTC
+  workflow_dispatch:          # "Run workflow" button for a manual test
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Ping database
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
+        run: |
+          set -euo pipefail
+          if [ -z "${SUPABASE_URL}" ] || [ -z "${SUPABASE_ANON_KEY}" ]; then
+            echo "::error::Add SUPABASE_URL and SUPABASE_ANON_KEY as repository secrets."
+            exit 1
+          fi
+          URL="${SUPABASE_URL%/}"
+          headers=(-H "apikey: ${SUPABASE_ANON_KEY}" -H "Content-Type: application/json")
+          # Legacy anon keys are JWTs and also go in the Authorization header
+          if [[ "${SUPABASE_ANON_KEY}" == eyJ* ]]; then
+            headers+=(-H "Authorization: Bearer ${SUPABASE_ANON_KEY}")
+          fi
+
+          # 1) write a heartbeat (database activity)
+          for attempt in 1 2 3; do
+            code=$(curl -sS -o ping.json -w '%{http_code}' -X POST "${URL}/rest/v1/rpc/ping" \
+              "${headers[@]}" -d '{"p_source":"github-actions"}') || code=000
+            if [ "$code" = "200" ]; then break; fi
+            echo "Attempt $attempt failed with HTTP $code"; cat ping.json 2>/dev/null || true; sleep 20
+          done
+          if [ "$code" != "200" ]; then
+            echo "::error::Supabase did not answer (HTTP $code). If the project is already paused, restore it in the Supabase dashboard."
+            exit 1
+          fi
+          echo "Heartbeat stored at: $(cat ping.json)"
+
+          # 2) read the public tables the display uses (API activity)
+          curl -sS -f "${URL}/rest/v1/teams?select=id&limit=1" "${headers[@]}" > /dev/null
+          echo "Supabase is awake ✔"

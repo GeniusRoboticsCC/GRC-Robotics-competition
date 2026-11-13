@@ -124,6 +124,33 @@ select * from public.score_history order by changed_at desc;
 
 ---
 
+## Live stream (YouTube webcam)
+
+The stream plays inside the **audience display**, next to the live scores. The **schedule page** shows a red **Watch live** button. YouTube carries the video, so any number of people can watch for free.
+
+**Once, before the event**
+1. **Turn on live streaming.** Go to **studio.youtube.com**, then **Create → Go live**, and follow the prompts, including phone verification. YouTube can take **up to 24 hours** to approve a channel the first time.
+2. **Update the database.** In Supabase, open **SQL Editor → New query**, paste all of `supabase/live_stream.sql` and click **Run**. It's safe to run again.
+
+**On the day**
+1. Plug the USB webcam into a laptop and point it at the arena from high up. Connect the laptop to the internet; you need about 3–5 Mbps upload. Keep a phone hotspot as a backup.
+2. In **YouTube Studio**, click **Create → Go live → Webcam**.
+   - **Visibility:** choose **Unlisted**, so only people with your website link can find it.
+   - **Latency:** choose **Low latency**.
+   - Click **Go live**.
+3. Copy the stream's link: **Share → Copy link**.
+4. In the staff app, go to **Teams → Live stream**, paste the link and tap **● Show stream on the website**. Every screen shows it within a second or two.
+5. To take it down, tap **Hide stream**. The link is kept, so you can switch it back on.
+
+Good to know:
+- The video plays **muted** to start, because browsers only autoplay muted video. Viewers tap the speaker icon for sound.
+- The video runs **5–15 seconds behind** real life. Scores on the site stay instant.
+- **The projector in the room:** the people there can see the real arena, and delayed video can confuse them. On that laptop, open `display.html?video=off`, or tap **Hide video on this screen** under the video. That screen stays scores-only and remembers it. `display.html?video=on` brings the video back.
+- If the stream stops and you start it again, YouTube gives it a **new link**. Paste the new one into **Live stream**.
+- **Filming children:** check that the school and parents are happy with the stream.
+
+---
+
 ## Managing staff access (Supabase dashboard)
 
 | To do this | Go here |
@@ -146,6 +173,8 @@ select * from public.score_history order by changed_at desc;
 | GitHub Pages shows 404 | Wait 2 minutes. Check that `index.html` is in the top level of the repository, not inside another folder |
 | Light stays 🟠 **Live · polling** | Venue Wi‑Fi may block live connections. Updates still arrive every 5 seconds. A phone hotspot usually fixes it |
 | Keep-alive run is red ❌ | Check the two secrets are spelled exactly `SUPABASE_URL` and `SUPABASE_ANON_KEY`. If the project already paused, click **Restore** in Supabase |
+| Live stream panel says "One-time setup" | Run `supabase/live_stream.sql` in the SQL Editor, then reload the staff page |
+| Video box is black or says "Video unavailable" | Check the stream is actually live in YouTube Studio. If you restarted it, paste the new link. In the stream's settings, make sure **Allow embedding** is on |
 
 ---
 
@@ -163,6 +192,7 @@ assets/style.css         shared styles
 assets/logo*.png, icon*  GRC logo (plus a light version for dark backgrounds) and app icons
 supabase/schema.sql      database, security rules and functions (already run on your project)
 supabase/field_release.sql   optional: "Release balls" button + ESP32 servo (see esp32/README.md)
+supabase/live_stream.sql     optional: YouTube live stream on the audience display (see "Live stream" above)
 esp32/                   optional: ESP32 program that opens the ball gate, with a step-by-step guide
 .github/workflows/keep-alive.yml   daily ping so Supabase never pauses
 ```
