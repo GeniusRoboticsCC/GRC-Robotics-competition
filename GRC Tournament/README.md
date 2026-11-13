@@ -97,8 +97,9 @@ Good to know:
 **Match sounds** play on every device showing the audience display: the projector, plus any phones and tablets watching `display.html`. The staff and schedule pages stay silent.
 - When staff press **▶ Start**, including after Pause, the start sound plays (`assets/sounds/match-start.mp3`).
 - When the clock reaches **0:30**, the Ole trumpet plays (`assets/sounds/30-seconds-ole-trumpet.mp3`).
-- Every screen times the sounds from the shared server clock, so they play together. The start sound plays half a second after Start is pressed, on every screen at once.
-- A screen that's reloaded mid-match, or that hears about Start more than 5 seconds late, stays quiet until the next Start. Resuming below 0:30 won't replay the trumpet.
+- When the clock hits **0:00**, the buzzer horn plays (`assets/sounds/time-up-horn.mp3`).
+- Every screen times the sounds from the shared server clock, so they play together. The start sound plays half a second after Start is pressed, on every screen at once. The trumpet and horn play at the exact moment the clock shows 0:30 and 0:00.
+- A screen that's reloaded mid-match, or that hears about Start more than 5 seconds late, stays quiet until the next Start. Resuming below 0:30 won't replay the trumpet. If staff press Pause or Reset before 0:00, the horn doesn't play.
 - To silence one screen, click **🔊 Sound on** so it reads **🔇 Sound off**. The screen remembers this. You can also open `display.html?sound=off`, and `?sound=on` turns it back on.
 - To change a sound, replace the file in `assets/sounds/`, keeping the same name.
 
@@ -205,7 +206,7 @@ assets/config.js         Supabase address + public key, and event details (date,
 assets/app.js            shared data, live-update and sync logic
 assets/style.css         shared styles
 assets/logo*.png, icon*  GRC logo (plus a light version for dark backgrounds) and app icons
-assets/sounds/           match-start.mp3 (on Start) and 30-seconds-ole-trumpet.mp3 (at 0:30), played by display.html
+assets/sounds/           match-start.mp3 (on Start), 30-seconds-ole-trumpet.mp3 (at 0:30), time-up-horn.mp3 (at 0:00), played by display.html
 supabase/schema.sql      database, security rules and functions (already run on your project)
 supabase/field_release.sql   optional: "Release balls" button + ESP32 servo (see esp32/README.md)
 supabase/live_stream.sql     optional: YouTube live stream on the audience display (see "Live stream" above)

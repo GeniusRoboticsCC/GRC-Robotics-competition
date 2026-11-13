@@ -473,14 +473,16 @@
   // ------------------------------------------------------------ match sounds
   // assets/sounds/match-start.mp3          → when staff press ▶ Start (also when resuming a paused clock)
   // assets/sounds/30-seconds-ole-trumpet.mp3 → when the running clock reaches 0:30
+  // assets/sounds/time-up-horn.mp3           → when the running clock hits 0:00
   // Every device showing this audience display plays them (the staff and schedule pages stay silent).
-  // Both sounds are timed from the shared server clock, so all screens play them together.
+  // All sounds are timed from the shared server clock, so all screens play them together.
   // Browsers only allow sound after someone has tapped/clicked the page, so each device shows a
   // "tap for match sounds" prompt until it's tapped once. "🔊 Sound on/off" (or ?sound=off) controls a screen.
   const SOUND_KEY = 'grc_sound';
   const sounds = {
     start: new Audio('assets/sounds/match-start.mp3'),
     thirty: new Audio('assets/sounds/30-seconds-ole-trumpet.mp3'),
+    end: new Audio('assets/sounds/time-up-horn.mp3'),
   };
   Object.values(sounds).forEach(a => { a.preload = 'auto'; });
   let soundOn = (() => {
@@ -565,6 +567,23 @@
       }
     }
     lastRunningRem = running ? rem : null;
+  }
+
+  // Time-up horn: scheduled for the exact moment the shared clock hits 0:00, once per run.
+  // Not if staff paused/reset just before, not on reload after time is up, not after a laptop wakes up late.
+  let endKey = null, lastRemBeforeEnd = null;
+  function checkEndSound(rem) {
+    const key = runKey();                   // the clock stays "running" at 0:00 until staff press Reset/Start
+    if (key && endKey !== key) {
+      if (rem > 0 && rem <= 300) {
+        endKey = key;                       // due within the next tick: schedule it to the millisecond
+        setTimeout(() => { if (runKey() === key) playSound('end'); }, rem);
+      } else if (rem <= 0 && lastRemBeforeEnd !== null && lastRemBeforeEnd > 0 && lastRemBeforeEnd <= 1500) {
+        endKey = key;                       // missed the exact moment (busy/background tab): play now
+        playSound('end');
+      }
+    }
+    lastRemBeforeEnd = key ? rem : null;
   }
 
   // ------------------------------------------------------------ live stream (YouTube)
@@ -835,6 +854,7 @@
       if (txt !== lastTxt) { clockEl.textContent = txt; lastTxt = txt; }
       const running = d.state.clock_running && rem > 0;
       checkThirtySound(rem, running);
+      checkEndSound(rem);
       card.classList.toggle('running', running);
       card.classList.toggle('danger', running && rem <= 20000);
       card.classList.toggle('done', rem <= 0);
