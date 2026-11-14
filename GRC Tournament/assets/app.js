@@ -69,6 +69,14 @@
   const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
   const clamp = (n, lo, hi) => Math.max(lo, Math.min(hi, n));
   const validScores = a => Array.isArray(a) && a.length === 4 && a.every(n => Number.isInteger(n) && n >= 0 && n <= 9999);
+  // An extra match's line-up: four different teams (1–10), each robot colour (0–3) used once. Same rule as the database.
+  function checkLineup(teamIds, colors) {
+    if (!Array.isArray(teamIds) || teamIds.length !== 4 || new Set(teamIds).size !== 4
+        || !teamIds.every(t => Number.isInteger(t) && t >= 1 && t <= TEAM_COUNT))
+      throw new Error('Pick four different teams');
+    if (!Array.isArray(colors) || colors.length !== 4 || colors.slice().sort().join() !== '0,1,2,3')
+      throw new Error('Use each robot colour (red, blue, green, yellow) once');
+  }
 
   function parseTime(s) {
     if (!s) return NaN;
@@ -123,6 +131,9 @@
       return new Error('The live stream needs a one-time database update: run supabase/live_stream.sql in the Supabase SQL Editor.');
     if (/set_live_score/.test(msg) && /could not find|does not exist/i.test(msg))
       return new Error('Live +/− scoring needs a one-time database update: run supabase/live_scores.sql in the Supabase SQL Editor.');
+    if (/(add_match|update_match|delete_match)/.test(msg) && /could not find|does not exist/i.test(msg))
+      return new Error('Extra matches need a one-time database update: run supabase/extra_matches.sql in the Supabase SQL Editor.');
+    if (/matches_id_check/.test(msg)) return new Error('There are already too many matches.');
     if ((e && e.code === '42501') || /not authori[sz]ed|permission denied/i.test(msg))
       return new Error('This account is not allowed to make changes. Ask the organiser to add your email to the staff list.');
     if (/invalid login credentials/i.test(msg)) return new Error('Wrong email or password.');
@@ -166,13 +177,20 @@
       scored_at: m.scored_at || null,
       // running score from the +/− buttons (not final until "Save scores"); see supabase/live_scores.sql
       live_scores: Array.isArray(m.live_scores) && m.live_scores.length === 4 ? m.live_scores.map(Number) : null,
+      // matches 16+ are extra matches added by judges, with an optional name like "Final"; see supabase/extra_matches.sql
+      label: typeof m.label === 'string' && m.label.trim() ? m.label.trim() : null,
+      extra: Number(m.id) > MATCH_COUNT,
     })).sort((a, b) => a.id - b.id);
     // false until supabase/live_scores.sql has been run (+/− then only change this device until Save)
     const live_supported = MODE === 'demo' || (raw.matches || []).some(m => Object.prototype.hasOwnProperty.call(m, 'live_scores'));
+    // false until supabase/extra_matches.sql has been run (judges can't add matches yet)
+    const extras_supported = MODE === 'demo' || (raw.matches || []).some(m => Object.prototype.hasOwnProperty.call(m, 'label'));
     const s = raw.state || {};
     const duration = Number(s.clock_duration_ms) || CLOCK_MS;
+    let current = Number(s.current_match) || 1;
+    if (!matches.some(m => m.id === current)) current = 1;
     const state = {
-      current_match: clamp(Number(s.current_match) || 1, 1, MATCH_COUNT),
+      current_match: current,
       clock_running: !!s.clock_running,
       clock_ends_at: s.clock_ends_at || null,
       clock_remaining_ms: Number.isFinite(Number(s.clock_remaining_ms)) && s.clock_remaining_ms !== null ? Number(s.clock_remaining_ms) : duration,
@@ -182,7 +200,7 @@
       stream_source: typeof s.stream_source === 'string' && STREAM_RE.test(s.stream_source) ? s.stream_source : null,
       stream_enabled: !!s.stream_enabled,
     };
-    return { teams, matches, state, live_supported };
+    return { teams, matches, state, live_supported, extras_supported };
   }
 
   // ---------------------------------------------------------------- status
@@ -222,7 +240,7 @@
     inflight = (async () => {
       try {
         const raw = await backend.fetchAll();
-        if (!raw.matches || raw.matches.length !== MATCH_COUNT || !raw.state)
+        if (!raw.matches || raw.matches.length < MATCH_COUNT || !raw.state)
           throw new Error('The database is not set up yet. Run supabase/schema.sql in the Supabase SQL Editor.');
         const next = normalize(raw);
         const sig = JSON.stringify(next);
@@ -345,7 +363,7 @@
     const read = () => {
       try {
         const v = JSON.parse(localStorage.getItem(KEY) || 'null');
-        if (v && Array.isArray(v.teams) && Array.isArray(v.matches) && v.matches.length === MATCH_COUNT && v.state) return v;
+        if (v && Array.isArray(v.teams) && Array.isArray(v.matches) && v.matches.length >= MATCH_COUNT && v.state) return v;
       } catch (e) { /* storage blocked */ }
       return memory || blank();
     };
@@ -358,23 +376,23 @@
     const remaining = s => (s.clock_running && s.clock_ends_at)
       ? clamp(parseTime(s.clock_ends_at) - Date.now(), 0, s.clock_duration_ms)
       : s.clock_remaining_ms;
-    const checkMatch = m => { if (!Number.isInteger(m) || m < 1 || m > MATCH_COUNT) throw new Error('Match must be between 1 and 15'); };
+    const find = (d, id) => d.matches.find(m => m.id === id);
+    const checkMatch = (d, id) => { const m = Number.isInteger(id) && find(d, id); if (!m) throw new Error('That match does not exist'); return m; };
     const resetClock = s => Object.assign(s, { clock_running: false, clock_ends_at: null, clock_remaining_ms: s.clock_duration_ms });
+    const cleanLabel = l => String(l || '').trim().slice(0, 40) || null;
 
     const fns = {
       save_scores(d, { p_match, p_scores }) {
-        checkMatch(p_match);
+        const m = checkMatch(d, p_match);
         if (p_scores !== null && !validScores(p_scores)) throw new Error('Scores must be four whole numbers from 0 to 9999');
-        const m = d.matches[p_match - 1];
         m.scores = p_scores;
         m.scored_at = p_scores ? new Date().toISOString() : null;
         m.live_scores = null;              // saving the final result ends live scoring (same as the database trigger)
       },
       set_live_score(d, { p_match, p_slot, p_value }) {
-        checkMatch(p_match);
+        const m = checkMatch(d, p_match);
         if (!Number.isInteger(p_slot) || p_slot < 0 || p_slot > 3) throw new Error('Robot must be 0, 1, 2 or 3');
         if (!Number.isInteger(p_value) || p_value < 0 || p_value > 9999) throw new Error('Points must be a whole number from 0 to 9999');
-        const m = d.matches[p_match - 1];
         const v = (m.live_scores || m.scores || [0, 0, 0, 0]).slice();
         v[p_slot] = p_value;
         m.live_scores = v;
@@ -384,7 +402,30 @@
         if (!Array.isArray(p_names) || p_names.length !== TEAM_COUNT) throw new Error('Provide exactly 10 team names');
         d.teams = p_names.map((n, i) => ({ id: i + 1, name: String(n || '').trim().slice(0, 80) || 'Team ' + (i + 1) }));
       },
-      set_current_match(d, { p_match }) { checkMatch(p_match); d.state.current_match = p_match; resetClock(d.state); },
+      set_current_match(d, { p_match }) { checkMatch(d, p_match); d.state.current_match = p_match; resetClock(d.state); },
+      // Extra matches (same rules as supabase/extra_matches.sql)
+      add_match(d, { p_label, p_team_ids, p_colors }) {
+        checkLineup(p_team_ids, p_colors);
+        const id = Math.max(MATCH_COUNT, ...d.matches.map(m => m.id)) + 1;
+        if (id > 99) throw new Error('There are already too many matches');
+        d.matches.push({ id, team_ids: p_team_ids.slice(), colors: p_colors.slice(), scores: null, scored_at: null, live_scores: null, label: cleanLabel(p_label) });
+        d.matches.sort((a, b) => a.id - b.id);
+        return id;
+      },
+      update_match(d, { p_match, p_label, p_team_ids, p_colors }) {
+        if (!(p_match > MATCH_COUNT)) throw new Error('Only extra matches can be changed here. The 15 qualifying matches are fixed.');
+        const m = checkMatch(d, p_match);
+        checkLineup(p_team_ids, p_colors);
+        const teamsChanged = JSON.stringify(m.team_ids) !== JSON.stringify(p_team_ids) || JSON.stringify(m.colors) !== JSON.stringify(p_colors);
+        if ((m.scores || m.live_scores) && teamsChanged) throw new Error('This match already has scores. Clear its scores first, then change the teams.');
+        Object.assign(m, { label: cleanLabel(p_label), team_ids: p_team_ids.slice(), colors: p_colors.slice() });
+      },
+      delete_match(d, { p_match }) {
+        if (!(p_match > MATCH_COUNT)) throw new Error('The 15 qualifying matches cannot be deleted');
+        if (d.state.current_match === p_match) throw new Error('This match is on the audience display. Show another match first, then delete it.');
+        checkMatch(d, p_match);
+        d.matches = d.matches.filter(m => m.id !== p_match);
+      },
       clock_control(d, { p_action }) {
         const s = d.state;
         let rem = remaining(s);
@@ -410,6 +451,8 @@
       restore_tournament(d, { p_names, p_scores, p_current }) {
         if (!Array.isArray(p_scores) || p_scores.length !== MATCH_COUNT) throw new Error('Backup must contain exactly 15 matches');
         fns.save_team_names(d, { p_names });
+        d.matches = d.matches.filter(m => m.id <= MATCH_COUNT);      // extras are re-added from the backup afterwards
+        if (d.state.current_match > MATCH_COUNT) d.state.current_match = 1;
         p_scores.forEach((sc, i) => fns.save_scores(d, { p_match: i + 1, p_scores: sc }));
         fns.set_current_match(d, { p_match: clamp(p_current || 1, 1, MATCH_COUNT) });
       },
@@ -557,9 +600,23 @@
   // Final = saved with "Save scores" and no running score on top (only final scores count in the standings)
   const isFinal = m => !!(m && m.scores && !m.live_scores);
 
+  // Matches are looked up by number, never by position: extra matches (16+) can be added and deleted
+  const matchById = (d, id) => (d && d.matches.find(m => m.id === id)) || null;
+  // "Match 7", or an extra match's own name ("Final"), falling back to "Match 16"
+  const matchName = (d, idOrMatch) => {
+    const m = typeof idOrMatch === 'object' ? idOrMatch : matchById(d, idOrMatch);
+    const id = m ? m.id : idOrMatch;
+    return (m && m.label) || 'Match ' + id;
+  };
+  // The match before/after this one in running order (dir = -1 or +1), or null at either end
+  const adjacentMatch = (d, id, dir) => {
+    const i = d.matches.findIndex(m => m.id === id);
+    return (i >= 0 && d.matches[i + dir]) || null;
+  };
+
   // Where a match is right now: final / in progress / live scoring / paused / awaiting scores / on deck / upcoming
   function matchPhase(d, matchId) {
-    const m = d.matches[matchId - 1];
+    const m = matchById(d, matchId);
     if (isFinal(m)) return { key: 'final', label: 'Final scores' };
     const scoring = !!(m && m.live_scores);
     if (d.state.current_match !== matchId)
@@ -587,7 +644,7 @@
   // { value, final, teams: [{ id, team, matches? }] } — more than one team means a tie.
   // final = all matches are scored, so the leader is the winner.
   function awards(d) {
-    const final = scoredCount(d) === MATCH_COUNT;
+    const final = scoredCount(d) === d.matches.length;      // every match, extra matches included
     const rows = standings(d).filter(r => r.played);
     let average = null, single = null;
     if (rows.length && rows[0].avg > 0) {
@@ -617,8 +674,10 @@
       event: EVENT.org + ' · ' + EVENT.title,
       exportedAt: new Date().toISOString(),
       teams: data.teams.map(t => t.name),
-      scores: data.matches.map(m => m.scores),
-      selectedMatch: data.state.current_match - 1,
+      // the 15 qualifying matches stay in the original format, so old and new backups both restore
+      scores: data.matches.filter(m => !m.extra).map(m => m.scores),
+      selectedMatch: data.state.current_match <= MATCH_COUNT ? data.state.current_match - 1 : 0,
+      extra_matches: data.matches.filter(m => m.extra).map(m => ({ label: m.label, team_ids: m.team_ids, colors: m.colors, scores: m.scores })),
     }, null, 2);
     const blob = new Blob([contents], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
@@ -640,7 +699,26 @@
     if (!Array.isArray(v.scores) || v.scores.length !== MATCH_COUNT || !v.scores.every(r => r === null || validScores(r)))
       throw new Error('The backup must contain 15 matches of scores.');
     const current = clamp((Number(v.selectedMatch) || 0) + 1, 1, MATCH_COUNT);
-    return { names, scores: v.scores, current };
+    // Extra matches (backups made after extra_matches.sql); older backups simply have none
+    const extras = v.extra_matches == null ? [] : v.extra_matches;
+    if (!Array.isArray(extras) || extras.length > 99 - MATCH_COUNT) throw new Error('The extra matches in this backup are not valid.');
+    extras.forEach((x, i) => {
+      try { checkLineup(x && x.team_ids, x && x.colors); }
+      catch (e) { throw new Error('Extra match ' + (i + 1) + ' in the backup is not valid: ' + e.message); }
+      if (!(x.scores === null || x.scores === undefined || validScores(x.scores)) || (x.label != null && (typeof x.label !== 'string' || x.label.length > 40)))
+        throw new Error('Extra match ' + (i + 1) + ' in the backup is not valid.');
+    });
+    return { names, scores: v.scores, current, extras };
+  }
+
+  // Restore = the 15 qualifying matches in one database step, then re-add the backup's extra matches
+  async function restoreBackup(b) {
+    await mutate('restore_tournament', { p_names: b.names, p_scores: b.scores, p_current: b.current });
+    for (const x of b.extras || []) {
+      const id = await call('add_match', { p_label: x.label || null, p_team_ids: x.team_ids, p_colors: x.colors });
+      if (x.scores) await call('save_scores', { p_match: Number(id), p_scores: x.scores });
+    }
+    if (b.extras && b.extras.length) await refresh();
   }
 
   // ---------------------------------------------------------------- screen wake lock (projector / phones)
@@ -672,7 +750,12 @@
     setCurrentMatch: match => mutate('set_current_match', { p_match: match }),
     clock: action => mutate('clock_control', { p_action: action }),
     resetTournament: () => mutate('reset_tournament'),
-    restoreBackup: b => mutate('restore_tournament', { p_names: b.names, p_scores: b.scores, p_current: b.current }),
+    restoreBackup,
+    // Extra matches added by judges (see supabase/extra_matches.sql). team_ids/colors: 4 each, colours 0–3 once.
+    addMatch: async (label, teamIds, colors) => { checkLineup(teamIds, colors); const id = await call('add_match', { p_label: label || null, p_team_ids: teamIds, p_colors: colors }); await refresh(); return Number(id); },
+    updateMatch: async (match, label, teamIds, colors) => { checkLineup(teamIds, colors); await mutate('update_match', { p_match: match, p_label: label || null, p_team_ids: teamIds, p_colors: colors }); },
+    deleteMatch: match => mutate('delete_match', { p_match: match }),
+    checkLineup, matchById, matchName, adjacentMatch,
     // Ball release (ESP32 servo, see esp32/README.md)
     releaseItems: () => call('release_items'),
     dropperStatus: () => call('dropper_status'),

@@ -86,6 +86,8 @@
 
   /* states */
   .mcard.final .mc-pill { background: rgba(41, 199, 132, .16); color: #8ff0c2; }
+  .mcard.extra .mc-no { color: var(--gold); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }   /* judges' extra matches, e.g. "Final" */
+  .mc-head { min-width: 0; }
   /* live +/− scoring: running points in pink until the result is saved as final */
   .mcard.scoring .mc-pill { background: rgba(255, 87, 103, .2); color: #ffb3bd; }
   .mc-team.lv .mc-pts { color: #ffb3bd; }
@@ -131,7 +133,7 @@
     .finder select { min-height: calc(var(--u) * 2.9); font-size: max(14px, calc(var(--u) * 1.05)); padding: 0 calc(var(--u) * .9); }
     .finder .summary { font-size: calc(var(--u) * 1); }
     .finder .btn { min-height: calc(var(--u) * 2.9); font-size: calc(var(--u) * .95); }
-    .sched { grid-template-columns: repeat(5, minmax(0, 1fr)); grid-template-rows: repeat(3, minmax(0, 1fr)); gap: calc(var(--u) * 1); min-height: 0; }
+    .sched { grid-template-columns: repeat(5, minmax(0, 1fr)); grid-template-rows: repeat(var(--rows, 3), minmax(0, 1fr)); gap: calc(var(--u) * 1); min-height: 0; }
     .mcard { container-type: size; min-height: 0; gap: 4cqh; padding: calc(var(--u) * 1) calc(var(--u) * 1.1); border-radius: calc(var(--u) * 1.1); }
     .mc-no { font-size: calc(var(--u) * 2); font-size: min(calc(var(--u) * 2.2), 13cqh); }
     .mc-pill { font-size: calc(var(--u) * .8); font-size: min(calc(var(--u) * .85), 6.5cqh); padding: .35em .8em; }
@@ -268,10 +270,12 @@
     const row = G.standings(d).find(r => r.id === team);
     const done = G.scoredCount(d);
     const next = mine.find(m => !m.scores && m.id >= d.state.current_match);
+    // how many matches away, counted in running order (extra matches can have gaps in their numbers)
+    const away = next ? d.matches.findIndex(m => m.id === next.id) - d.matches.findIndex(m => m.id === d.state.current_match) : 0;
     const nextTxt = !next ? 'All matches played'
-      : next.id === d.state.current_match ? '<b>On the field now</b> (Match ' + next.id + ')'
-      : 'Next: <b>Match ' + next.id + '</b>' + (next.id - d.state.current_match === 1 ? ' (up next!)' : ' (' + (next.id - d.state.current_match) + ' matches away)');
-    $('summary').innerHTML = `<b>${esc(G.teamName(d, team))}</b> plays matches ${mine.map(m => m.id).join(' · ')}. ` +
+      : next.id === d.state.current_match ? '<b>On the field now</b> (' + esc(G.matchName(d, next)) + ')'
+      : 'Next: <b>' + esc(G.matchName(d, next)) + '</b>' + (away === 1 ? ' (up next!)' : ' (' + away + ' matches away)');
+    $('summary').innerHTML = `<b>${esc(G.teamName(d, team))}</b> plays matches ${mine.map(m => m.extra ? esc(G.matchName(d, m)) : m.id).join(' · ')}. ` +
       `${nextTxt}. ${row.played} of ${row.scheduled} played` +
       (row.played ? ` · <b>${G.formatAvg(row.avg)} avg</b> · best match ${row.best} pts` : '') +
       (done ? ' · ' + ordinal(row.rank) + ' place' : '');
@@ -286,7 +290,8 @@
     }
     if (G.isFinal(m)) return { cls: 'final', phase: 'final', label: '✓ Final' };
     if (m.live_scores) return { cls: 'scoring', phase: 'scoring', label: 'Live scoring' };
-    if (m.id === cur + 1) return { cls: 'next', phase: 'next', label: 'Up next' };
+    const nx = G.adjacentMatch(d, cur, 1);
+    if (nx && m.id === nx.id) return { cls: 'next', phase: 'next', label: 'Up next' };
     return { cls: '', phase: 'upcoming', label: m.id < cur ? 'Not scored' : 'Upcoming' };
   }
 
@@ -314,16 +319,19 @@
           <span class="mc-name">${esc(G.teamName(d, t))}</span>
           <b class="mc-pts">${shown ? shown[j] : ''}</b></li>`;
       }).join('');
-      return `<article class="mcard ${s.cls}${mineCls}${changed ? ' flash' : ''}" id="match-${m.id}" data-phase="${s.phase}">
-        <div class="mc-head"><span class="mc-no">Match ${m.id}</span><span class="mc-pill" data-pill>${s.label}${m.id === d.state.current_match && !final ? ' <span class="t" data-ck></span>' : ''}</span></div>
+      return `<article class="mcard ${s.cls}${m.extra ? ' extra' : ''}${mineCls}${changed ? ' flash' : ''}" id="match-${m.id}" data-phase="${s.phase}">
+        <div class="mc-head"><span class="mc-no">${esc(G.matchName(d, m))}</span><span class="mc-pill" data-pill>${s.label}${m.id === d.state.current_match && !final ? ' <span class="t" data-ck></span>' : ''}</span></div>
         <ul class="mc-teams">${rows}</ul>
       </article>`;
     }).join('');
     lastScored = new Map(d.matches.map(m => [m.id, JSON.stringify(m.scores)]));
 
-    $('progressText').textContent = done + ' of ' + G.MATCH_COUNT + ' matches complete';
-    $('progressBar').style.width = (done / G.MATCH_COUNT * 100) + '%';
-    $('nowMatch').textContent = 'Match ' + d.state.current_match;
+    const total = d.matches.length;                  // 15 qualifying + any extra matches added by judges
+    $('progressText').textContent = done + ' of ' + total + ' matches complete';
+    $('progressBar').style.width = (done / total * 100) + '%';
+    $('nowMatch').textContent = G.matchName(d, d.state.current_match);
+    // big screens: 5 cards per row, as many rows as needed (3 for the 15 qualifying matches)
+    $('sched').style.setProperty('--rows', Math.ceil(total / 5));
 
     if (firstRender) {
       firstRender = false;

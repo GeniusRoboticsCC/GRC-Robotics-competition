@@ -79,7 +79,8 @@
   @media (min-width: 640px) { .live-card { grid-template-columns: auto 1fr; align-items: end; gap: 28px; } }
   .live-match { display: flex; align-items: center; gap: 10px; }
   .live-match .btn.icon { width: 48px; min-height: 48px; font-size: 24px; }
-  .live-match b { display: block; font-family: var(--font-display); font-size: 38px; line-height: 1; text-transform: uppercase; white-space: nowrap; }
+  .live-match b { display: block; font-family: var(--font-display); font-size: 38px; line-height: 1; text-transform: uppercase; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .live-match > div { min-width: 0; }
   .live-match small { display: block; color: var(--muted); font-weight: 700; font-size: 13px; margin-top: 3px; white-space: nowrap; }
   .btn.nudge { border-color: var(--gold); box-shadow: 0 0 0 0 rgba(255, 204, 47, .6); animation: nudge 1.8s infinite; }
   @keyframes nudge { 0% { box-shadow: 0 0 0 0 rgba(255, 204, 47, .55); } 70% { box-shadow: 0 0 0 10px rgba(255, 204, 47, 0); } 100% { box-shadow: 0 0 0 0 rgba(255, 204, 47, 0); } }
@@ -136,6 +137,7 @@
   .chip.done { background: rgba(41, 199, 132, .14); border-color: rgba(41, 199, 132, .55); color: #a6f5cf; }
   .chip.sel { outline: 3px solid var(--gold); outline-offset: 1px; color: #fff; }
   .chip.live::after { content: ''; position: absolute; top: 5px; right: 5px; width: 8px; height: 8px; border-radius: 50%; background: var(--gold); box-shadow: 0 0 8px var(--gold); }
+  .chip.extra { padding: 0 14px; font-size: 13px; letter-spacing: .02em; border-color: rgba(255, 204, 47, .45); }
   .chips-legend { display: flex; gap: 14px; flex-wrap: wrap; font-size: 11px; color: var(--muted-2); margin-bottom: 6px; }
   .chips-legend span { display: inline-flex; align-items: center; gap: 6px; }
   .chips-legend i { width: 10px; height: 10px; border-radius: 3px; display: inline-block; }
@@ -222,6 +224,32 @@
   .fx-team .nm { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .fx-team .sc { font-weight: 900; color: var(--gold); font-variant-numeric: tabular-nums; }
   .fx-team.win .nm::after { content: ' ★'; color: var(--gold); }
+  .fixture.extra .fx-title { color: var(--gold); }
+  .fx-group { grid-column: 1 / -1; margin-top: 6px; font-size: 12px; font-weight: 900; letter-spacing: .16em; text-transform: uppercase; color: var(--gold); }
+
+  /* ---------- match setup (extra matches picked by judges) ---------- */
+  .setup-form { display: grid; gap: 12px; margin-top: 14px; }
+  .setup-slots { display: grid; gap: 8px; }
+  @media (min-width: 640px) { .setup-slots { grid-template-columns: 1fr 1fr; gap: 10px; } }
+  .slot { position: relative; display: grid; gap: 6px; padding: 10px 12px 12px 17px; background: var(--panel-2); border: 1px solid var(--line); border-radius: 12px; overflow: hidden; }
+  .slot::before { content: ''; position: absolute; left: 0; top: 0; bottom: 0; width: 6px; background: var(--c); }
+  .slot-tag { display: flex; align-items: center; gap: 7px; font-size: 11px; font-weight: 900; letter-spacing: .1em; text-transform: uppercase; color: var(--c); }
+  .slot select:disabled { opacity: .6; }
+  .setup-actions { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+  .setup-actions .spacer { flex: 1 1 auto; }
+  .setup-actions .btn.primary { min-width: 160px; }
+  .extra-list { display: grid; gap: 10px; }
+  @media (min-width: 900px) { .extra-list { grid-template-columns: 1fr 1fr; } }
+  .xrow { display: grid; gap: 8px; padding: 12px 14px; background: var(--panel-2); border: 1px solid var(--line); border-radius: 12px; }
+  .xrow.editing { border-color: var(--gold); box-shadow: inset 0 0 0 1px var(--gold); }
+  .xrow-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; flex-wrap: wrap; }
+  .xrow-head b { font-family: var(--font-display); font-size: 21px; line-height: 1; text-transform: uppercase; }
+  .xrow-head small { color: var(--muted-2); font-weight: 700; margin-left: 6px; }
+  .xrow-teams { display: grid; grid-template-columns: 1fr 1fr; gap: 5px 12px; font-size: 13px; font-weight: 700; }
+  .xrow-teams span { display: flex; align-items: center; gap: 7px; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .xrow-teams .sc { margin-left: auto; color: var(--gold); font-weight: 900; }
+  .xrow-actions { display: flex; gap: 6px; flex-wrap: wrap; }
+  .empty-note { color: var(--muted); font-size: 13px; padding: 4px 0; }
 
   /* ---------- teams ---------- */
   .teams-grid { display: grid; grid-template-columns: minmax(0, 1fr); gap: 16px; }
@@ -406,18 +434,42 @@
         <a class="btn ghost small" href="display.html" target="_blank" rel="noopener">◫ Audience display ↗</a>
       </div>
       <div class="table-wrap" id="fullTable"></div>
-      <div class="notice" style="margin-top:14px">Two awards: <b>highest average</b> (points per match played) and <b>best single match</b> (the highest score in one match, shown in gold). The table is ranked by average, then best single match, then total points. Every team plays 6 matches. Arrows show movement since the most recently scored match.</div>
+      <div class="notice" style="margin-top:14px">Two awards: <b>highest average</b> (points per match played) and <b>best single match</b> (the highest score in one match, shown in gold). The table is ranked by average, then best single match, then total points. Every team plays 6 qualifying matches; extra matches (semi-finals, final…) count too. Arrows show movement since the most recently scored match.</div>
     </div>
   </section>
 
   <!-- MATCHES -->
   <section class="view" id="view-matches">
+    <div class="stack">
+    <div class="panel" id="setupPanel">
+      <div class="section-title">Match setup · judges</div>
+      <h2 id="setupTitle">Add a match</h2>
+      <p class="sub">Choose who plays who in an extra match, such as a semi-final or the final. Extra matches are scored like any other match, and their points count in the standings and awards.</p>
+      <div class="notice warn hidden" id="setupNeedsSql" style="margin-top:12px">One-time setup: in Supabase open <b>SQL Editor</b>, paste the file <b>supabase/extra_matches.sql</b> and click <b>Run</b>. Then reload this page.</div>
+      <div class="setup-form" id="setupForm">
+        <div>
+          <label class="lbl" for="setupName">Match name</label>
+          <input class="field" id="setupName" maxlength="40" placeholder="e.g. Semi-final 1, Final" autocomplete="off" autocapitalize="words">
+        </div>
+        <div class="setup-slots" id="setupSlots"></div>
+        <div class="notice hidden" id="setupLocked">This match already has scores, so its teams are locked. To change teams, clear its scores on the Score tab first. You can still rename it.</div>
+        <div class="setup-actions">
+          <button class="btn ghost small" type="button" id="setupTop4">★ Fill with the top 4</button>
+          <span class="spacer"></span>
+          <button class="btn ghost hidden" type="button" id="setupCancel">Cancel</button>
+          <button class="btn primary" type="button" id="setupSave">＋ Add match</button>
+        </div>
+      </div>
+      <div class="section-title" style="margin:20px 0 10px">Extra matches</div>
+      <div class="extra-list" id="extraList"></div>
+    </div>
+
     <div class="panel">
       <div class="row">
         <div>
           <div class="section-title">Official fixture schedule</div>
           <h2>15 matches · 4 robots each</h2>
-          <p class="sub">Every team plays 6 times and meets every other team exactly twice. Tap a match to score it.</p>
+          <p class="sub">Every team plays 6 qualifying matches and meets every other team exactly twice. Extra matches appear after them. Tap a match to score it.</p>
         </div>
         <div style="display:flex;gap:8px;flex-wrap:wrap">
           <a class="btn small ghost" href="schedule.html" target="_blank" rel="noopener">▦ Public schedule ↗</a>
@@ -431,6 +483,7 @@
         <span><i class="dot" style="--c:var(--c-yellow)"></i>Yellow · Paper</span>
       </div>
       <div class="fixtures" id="fixtures"></div>
+    </div>
     </div>
   </section>
 
@@ -609,7 +662,8 @@
   G.on('data', nd => {
     d = nd;
     const live = d.state.current_match;
-    if (selected === null) selected = live;
+    // first load, or the match being edited here was deleted (extra match): jump to what's on display
+    if (selected === null || !G.matchById(d, selected)) { selected = live; edit.match = null; edit.dirty = [false, false, false, false]; }
     else if (followLive && live !== lastLive && !anyDirty()) selected = live;
     lastLive = live;
     renderLive();
@@ -617,6 +671,7 @@
     renderEditor();
     renderTables();
     renderFixtures();
+    renderSetup();
     renderRoster();
     renderStream();
     tick();
@@ -625,20 +680,22 @@
   // ------------------------------------------------------------ live display card + clock
   function renderLive() {
     const live = d.state.current_match;
-    $('liveNo').textContent = 'Match ' + live;
-    $('livePrev').disabled = live <= 1;
-    $('liveNext').disabled = live >= G.MATCH_COUNT;
-    $('liveNext').classList.toggle('nudge', !!d.matches[live - 1].scores && live < G.MATCH_COUNT);
+    const m = G.matchById(d, live);
+    const next = G.adjacentMatch(d, live, 1);
+    $('liveNo').textContent = G.matchName(d, live);
+    $('livePrev').disabled = !G.adjacentMatch(d, live, -1);
+    $('liveNext').disabled = !next;
+    $('liveNext').classList.toggle('nudge', !!(m && m.scores) && !!next);
   }
   async function moveLive(target, btn) {
-    if (target < 1 || target > G.MATCH_COUNT) return;
+    if (!G.matchById(d, target)) return;
     if (d.state.clock_running && G.clockRemaining(d) > 0 &&
-        !confirm('The match clock is running. Show Match ' + target + ' on the display and reset the clock?')) return;
+        !confirm('The match clock is running. Show ' + G.matchName(d, target) + ' on the display and reset the clock?')) return;
     if (selected === d.state.current_match && !anyDirty()) followLive = true;
     await busy(btn, () => G.setCurrentMatch(target));
   }
-  $('livePrev').onclick = e => moveLive(d.state.current_match - 1, e.currentTarget);
-  $('liveNext').onclick = e => moveLive(d.state.current_match + 1, e.currentTarget);
+  $('livePrev').onclick = e => { const p = G.adjacentMatch(d, d.state.current_match, -1); if (p) moveLive(p.id, e.currentTarget); };
+  $('liveNext').onclick = e => { const n = G.adjacentMatch(d, d.state.current_match, 1); if (n) moveLive(n.id, e.currentTarget); };
   $('clockStart').onclick = e => busy(e.currentTarget, () => G.clock('start'));
   $('clockPause').onclick = e => busy(e.currentTarget, () => G.clock('pause'));
   $('clockReset').onclick = e => busy(e.currentTarget, () => G.clock('reset'));
@@ -745,7 +802,7 @@
     const m = d.state.current_match;
     const warn = relInfo && !relInfo.online
       ? '\n\nWarning: the dropper looks OFFLINE. It will only release if it reconnects within 20 seconds.' : '';
-    if (!confirm('Release the balls for Match ' + m + ' now?' + warn)) return;
+    if (!confirm('Release the balls for ' + G.matchName(d, m) + ' now?' + warn)) return;
     relFlash = null;
     const ok = await busy(e.currentTarget, async () => {
       const id = await G.releaseItems();
@@ -760,10 +817,14 @@
   // ------------------------------------------------------------ match chips
   function renderChips(scroll) {
     const live = d.state.current_match;
-    $('matchChips').innerHTML = d.matches.map(m =>
-      `<button type="button" class="chip${m.scores ? ' done' : ''}${m.id === selected ? ' sel' : ''}${m.id === live ? ' live' : ''}"
-        data-match="${m.id}" aria-pressed="${m.id === selected}"
-        aria-label="Match ${m.id}${m.scores ? ', scored' : ''}${m.id === live ? ', on display' : ''}">${m.id}</button>`).join('');
+    $('matchChips').innerHTML = d.matches.map(m => {
+      const nm = G.matchName(d, m);
+      // qualifying matches show their number; extra matches their (short) name, e.g. "Final"
+      const txt = !m.extra ? m.id : m.label ? esc(m.label.length > 14 ? m.label.slice(0, 13) + '…' : m.label) : '#' + m.id;
+      return `<button type="button" class="chip${m.extra ? ' extra' : ''}${m.scores ? ' done' : ''}${m.id === selected ? ' sel' : ''}${m.id === live ? ' live' : ''}"
+        data-match="${m.id}" aria-pressed="${m.id === selected}" title="${esc(nm)}"
+        aria-label="${esc(nm)}${m.scores ? ', scored' : ''}${m.id === live ? ', on display' : ''}">${txt}</button>`;
+    }).join('');
     if (scroll) {
       const el = $('matchChips').querySelector('.sel');
       if (el) el.scrollIntoView({ block: 'nearest', inline: 'center', behavior: 'smooth' });
@@ -771,7 +832,7 @@
   }
   function selectMatch(id) {
     if (id === selected) return;
-    if (anyDirty() && !confirm('Discard the unsaved scores for Match ' + selected + '?')) return;
+    if (anyDirty() && !confirm('Discard the unsaved scores for ' + G.matchName(d, selected) + '?')) return;
     selected = id;
     followLive = id === d.state.current_match;
     edit.match = null;
@@ -782,11 +843,11 @@
 
   // ------------------------------------------------------------ score editor
   function renderEditor() {
-    const m = d.matches[selected - 1];
+    const m = G.matchById(d, selected);
     const live = d.state.current_match;
     const names = m.team_ids.map(t => G.teamName(d, t));
-    const key = selected + '|' + names.join('|');
-    $('editTitle').textContent = 'Match ' + selected;
+    const key = selected + '|' + m.colors.join() + '|' + names.join('|');   // rebuild if a judge changes the line-up
+    $('editTitle').textContent = G.matchName(d, selected);
     const status = G.isFinal(m) ? '<span class="pill done">✓ Final</span>'
       : m.live_scores ? `<span class="pill scoring">Live${m.scores ? ' · update not saved' : ' scoring'}</span>`
       : '<span class="pill">Not scored</span>';
@@ -854,7 +915,7 @@
 
   function updateDirty() {
     [0, 1, 2, 3].forEach(i => { const c = $('card' + i); if (c) c.classList.toggle('dirty', edit.dirty[i]); });
-    const m = d && d.matches[selected - 1];
+    const m = d && G.matchById(d, selected);
     const flag = $('dirtyFlag');
     flag.textContent = anyDirty() ? 'Unsaved' : 'Live · not final yet';
     flag.classList.toggle('hidden', !(anyDirty() || (m && m.live_scores)));
@@ -939,7 +1000,7 @@
     const nums = vals.map(Number);
     if (nums.some(n => !Number.isInteger(n) || n < 0 || n > 9999)) { G.toast('Scores must be whole numbers from 0 to 9999.', 'error'); return; }
     const match = selected;
-    const wasScored = !!d.matches[match - 1].scores;
+    const wasScored = !!G.matchById(d, match).scores;
     const ok = await busy($('saveScores'), async () => { await settleLive(); await G.saveScores(match, nums); });
     if (!ok) return;
     if (document.activeElement && document.activeElement.blur) document.activeElement.blur();
@@ -947,27 +1008,27 @@
     $('remoteNotice').classList.add('hidden');
     updateDirty();
     buzz();
-    G.toast('Match ' + match + (wasScored ? ' updated' : ' saved') + ' ✓  Standings are live.');
+    G.toast(G.matchName(d, match) + (wasScored ? ' updated' : ' saved') + ' ✓  Standings are live.');
   }
   $('saveScores').onclick = saveScores;
 
   $('clearScores').onclick = async e => {
-    const m = d.matches[selected - 1];
+    const m = G.matchById(d, selected);
     if (!m.scores && !m.live_scores) {
       edit.dirty = [false, false, false, false];
       [0, 1, 2, 3].forEach(i => { $('score' + i).value = ''; });
       updateDirty();
       return;
     }
-    const what = m.scores ? 'the saved scores for Match ' + selected + '? It will be removed from the standings.'
-      : 'the live scores for Match ' + selected + '? Every screen goes back to no score.';
+    const what = m.scores ? 'the saved scores for ' + G.matchName(d, selected) + '? It will be removed from the standings.'
+      : 'the live scores for ' + G.matchName(d, selected) + '? Every screen goes back to no score.';
     if (!confirm('Clear ' + what)) return;
     const ok = await busy(e.currentTarget, async () => { await settleLive(); await G.saveScores(selected, null); });
     if (ok) {
       edit.dirty = [false, false, false, false];
       [0, 1, 2, 3].forEach(i => { $('score' + i).value = ''; });
       updateDirty();
-      G.toast('Match ' + selected + ' scores cleared.');
+      G.toast(G.matchName(d, selected) + ' scores cleared.');
     }
   };
   $('loadRemote').onclick = () => {
@@ -992,7 +1053,8 @@
     const avg = r => r.played ? G.formatAvg(r.avg) : '—';
     const best = r => r.played ? r.best : '—';
 
-    $('sideDone').textContent = done + ' / ' + G.MATCH_COUNT;
+    const total = d.matches.length;                          // 15 qualifying + any extra matches
+    $('sideDone').textContent = done + ' / ' + total;
     $('sideTable').innerHTML = '<table><thead><tr><th>#</th><th>Team</th><th class="num">P</th><th class="num">Avg</th><th class="num">Best</th></tr></thead><tbody>' +
       rows.map(r => `<tr><td><span class="${rankCls(r)}">${r.rank}</span></td><td class="team-cell">${esc(r.team)}</td><td class="num">${r.played}/${r.scheduled}</td><td class="num pts">${avg(r)}</td><td class="num"${bestIds.has(r.id) ? ' style="color:var(--gold);font-weight:900"' : ''}>${best(r)}</td></tr>`).join('') +
       '</tbody></table>';
@@ -1004,22 +1066,23 @@
     const names = a => a.teams.map(t => esc(t.team)).join(' & ');
     const state = a => a.final ? (a.teams.length > 1 ? 'Joint winners · ' : 'Winner · ') : '';
     const a1 = aw.average, a2 = aw.single;
-    const where = a2 && a2.teams.length === 1 ? ' · Match ' + a2.teams[0].matches.join(' & ') : '';
+    const where = a2 && a2.teams.length === 1 ? ' · ' + a2.teams[0].matches.map(id => G.matchName(d, id)).join(' & ') : '';
     $('kpis').innerHTML = [
-      ['Completed', done + ' / ' + G.MATCH_COUNT, (G.MATCH_COUNT - done) + ' matches to go'],
+      ['Completed', done + ' / ' + total, (total - done) + ' matches to go'],
       [(a1 ? state(a1) : '') + 'Highest average', a1 ? names(a1) : '—', a1 ? G.formatAvg(a1.value) + ' pts per match' : 'No scores yet'],
       [(a2 ? state(a2) : '') + 'Best single match', a2 ? a2.value + ' pts' : '—', a2 ? names(a2) + where : 'No scores yet'],
-      ['On display', 'Match ' + d.state.current_match, esc(G.matchPhase(d, d.state.current_match).label)],
+      ['On display', esc(G.matchName(d, d.state.current_match)), esc(G.matchPhase(d, d.state.current_match).label)],
     ].map(([a, b, c]) => `<div class="kpi"><small>${a}</small><b>${b}</b><span>${c}</span></div>`).join('');
   }
 
   // ------------------------------------------------------------ fixtures
   function renderFixtures() {
     const live = d.state.current_match;
-    $('fixtures').innerHTML = d.matches.map(m => {
+    $('fixtures').innerHTML = d.matches.map((m, i) => {
       const top = m.scores ? Math.max.apply(null, m.scores) : null;
-      return `<button type="button" class="fixture${m.id === live ? ' live' : ''}" data-fix="${m.id}">
-        <div class="fx-top"><span class="fx-title">Match ${m.id}</span>
+      const group = m.extra && !(d.matches[i - 1] && d.matches[i - 1].extra) ? '<div class="fx-group">Extra matches</div>' : '';
+      return group + `<button type="button" class="fixture${m.extra ? ' extra' : ''}${m.id === live ? ' live' : ''}" data-fix="${m.id}">
+        <div class="fx-top"><span class="fx-title">${esc(G.matchName(d, m))}</span>
           <span style="display:flex;gap:6px">${m.id === live ? '<span class="pill live">● Display</span>' : ''}${m.scores ? '<span class="pill done">✓ Final</span>' : '<span class="pill">Upcoming</span>'}</span></div>
         <div class="fx-teams">${m.team_ids.map((t, j) => `<div class="fx-team${m.scores && m.scores[j] === top && top > 0 ? ' win' : ''}">
           <i class="dot" style="--c:${G.COLORS[m.colors[j]].hex}"></i><span class="nm">${esc(G.teamName(d, t))}</span>${m.scores ? `<span class="sc">${m.scores[j]}</span>` : ''}</div>`).join('')}</div>
@@ -1036,7 +1099,7 @@
   $('printBtn').onclick = () => {
     const w = window.open('', '_blank');
     if (!w) { G.toast('Allow pop-ups to print the schedule.', 'error'); return; }
-    const rows = d.matches.map(m => `<tr><td><b>${m.id}</b></td>${m.team_ids.map((t, j) =>
+    const rows = d.matches.map(m => `<tr><td><b>${m.extra ? esc(G.matchName(d, m)) : m.id}</b></td>${m.team_ids.map((t, j) =>
       `<td style="border-left:6px solid ${G.COLORS[m.colors[j]].hex}">${esc(G.teamName(d, t))} <small>(${G.COLORS[m.colors[j]].name})</small>${m.scores ? ' — <b>' + m.scores[j] + '</b>' : ''}</td>`).join('')}</tr>`).join('');
     w.document.write(`<!DOCTYPE html><html><head><meta charset="utf-8"><title>GRC Match Schedule</title><style>
       body{font-family:Arial,sans-serif;padding:24px;color:#111}header{display:flex;align-items:center;gap:14px;margin-bottom:14px}
@@ -1050,7 +1113,7 @@
   };
 
   // ------------------------------------------------------------ team roster
-  function teamMatches(id) { return d.matches.filter(m => m.team_ids.includes(id)).map(m => m.id); }
+  function teamMatches(id) { return d.matches.filter(m => m.team_ids.includes(id)).map(m => m.extra ? G.matchName(d, m) : m.id); }
   function renderRoster() {
     if (!rosterBuilt) {
       $('roster').innerHTML = d.teams.map((t, i) => `<div class="roster-item" id="rosterItem${i}">
@@ -1148,6 +1211,139 @@
     if (ok) G.toast('Live stream hidden from the website.');
   };
 
+  // ------------------------------------------------------------ match setup: judges add extra matches (see supabase/extra_matches.sql)
+  // The form has one team picker per robot colour (Red, Blue, Green, Yellow).
+  let setupEditing = null;        // number of the extra match being edited, or null when adding a new one
+  let setupTouched = false;       // the judge has changed the form since it was opened
+  const slotVal = c => Number($('slot' + c).value) || 0;
+
+  (function buildSlots() {
+    $('setupSlots').innerHTML = G.COLORS.map((c, i) => `<div class="slot" style="--c:${c.hex}">
+        <label class="slot-tag" for="slot${i}"><i class="dot"></i>${c.name} robot · ${c.material}</label>
+        <select class="field" id="slot${i}" data-c="${i}"></select>
+      </div>`).join('');
+  })();
+
+  // Team lists: a team already picked for another colour is greyed out, so judges can't pick it twice
+  function fillSlotOptions() {
+    const picked = [0, 1, 2, 3].map(slotVal);
+    [0, 1, 2, 3].forEach(c => {
+      const sel = $('slot' + c), cur = picked[c];
+      const html = '<option value="">Choose a team…</option>' + d.teams.map(t => {
+        const elsewhere = picked.some((p, j) => j !== c && p === t.id);
+        return `<option value="${t.id}"${elsewhere ? ' disabled' : ''}>${esc(t.name)}${elsewhere ? ' (already picked)' : ''}</option>`;
+      }).join('');
+      if (sel.dataset.html !== html) { sel.innerHTML = html; sel.dataset.html = html; }
+      sel.value = cur ? String(cur) : '';
+    });
+  }
+  function setSlots(teamsByColour) {
+    [0, 1, 2, 3].forEach(c => { $('slot' + c).value = teamsByColour[c] ? String(teamsByColour[c]) : ''; });
+    fillSlotOptions();
+  }
+  function resetSetupForm() {
+    setupEditing = null;
+    setupTouched = false;
+    $('setupName').value = '';
+    setSlots([0, 0, 0, 0]);
+    renderSetup();
+  }
+  function editExtra(id) {
+    const m = G.matchById(d, id);
+    if (!m) return;
+    if (setupTouched && !confirm('Discard the changes in the match setup form?')) return;
+    setupEditing = id;
+    setupTouched = false;
+    $('setupName').value = m.label || '';
+    const byColour = [0, 0, 0, 0];
+    m.colors.forEach((c, j) => { byColour[c] = m.team_ids[j]; });
+    setSlots(byColour);
+    renderSetup();
+    $('setupPanel').scrollIntoView({ block: 'start', behavior: 'smooth' });
+  }
+
+  function renderSetup() {
+    if (!d) return;
+    $('setupNeedsSql').classList.toggle('hidden', !!d.extras_supported);
+    if (setupEditing && !G.matchById(d, setupEditing)) { setupEditing = null; setupTouched = false; $('setupName').value = ''; setSlots([0, 0, 0, 0]); }
+    const editing = setupEditing && G.matchById(d, setupEditing);
+    const locked = !!(editing && (editing.scores || editing.live_scores));
+    $('setupTitle').textContent = editing ? 'Edit ' + G.matchName(d, editing) : 'Add a match';
+    $('setupSave').textContent = editing ? '✓ Save changes' : '＋ Add match';
+    $('setupCancel').classList.toggle('hidden', !editing);
+    $('setupLocked').classList.toggle('hidden', !locked);
+    $('setupTop4').disabled = locked;
+    [0, 1, 2, 3].forEach(c => { $('slot' + c).disabled = locked; });
+    fillSlotOptions();
+
+    const extras = d.matches.filter(m => m.extra);
+    const live = d.state.current_match;
+    $('extraList').innerHTML = extras.length ? extras.map(m => {
+      const shown = G.shownScores(m);
+      const status = G.isFinal(m) ? '<span class="pill done">✓ Final</span>'
+        : m.live_scores ? '<span class="pill scoring">Live scoring</span>' : '<span class="pill">Not played</span>';
+      const teams = m.team_ids.map((t, j) => ({ t, c: m.colors[j], s: shown ? shown[j] : null }))
+        .sort((a, b) => a.c - b.c)
+        .map(x => `<span><i class="dot" style="--c:${G.COLORS[x.c].hex}"></i>${esc(G.teamName(d, x.t))}${x.s !== null ? `<b class="sc">${x.s}</b>` : ''}</span>`).join('');
+      return `<div class="xrow${m.id === setupEditing ? ' editing' : ''}">
+        <div class="xrow-head"><div><b>${esc(G.matchName(d, m))}</b><small>match ${m.id}</small></div>
+          <span style="display:flex;gap:6px">${m.id === live ? '<span class="pill live">● On display</span>' : ''}${status}</span></div>
+        <div class="xrow-teams">${teams}</div>
+        <div class="xrow-actions">
+          <button class="btn small" type="button" data-xscore="${m.id}">✎ Score</button>
+          ${m.id === live ? '' : `<button class="btn small blue" type="button" data-xshow="${m.id}">◫ Show on display</button>`}
+          <button class="btn small ghost" type="button" data-xedit="${m.id}">Edit teams</button>
+          <button class="btn small danger" type="button" data-xdel="${m.id}">Delete</button>
+        </div>
+      </div>`;
+    }).join('') : '<div class="empty-note">No extra matches yet. Pick four teams above and tap <b>Add match</b>.</div>';
+  }
+
+  $('setupSlots').addEventListener('change', () => { setupTouched = true; fillSlotOptions(); });
+  $('setupName').addEventListener('input', () => { setupTouched = true; });
+  $('setupCancel').onclick = resetSetupForm;
+  $('setupTop4').onclick = () => {
+    const top = G.standings(d).slice(0, 4);
+    setSlots(top.map(r => r.id));       // 1st → Red, 2nd → Blue, 3rd → Green, 4th → Yellow
+    setupTouched = true;
+    G.toast('Filled with the current top 4: ' + top.map(r => r.team).join(', '));
+  };
+  $('setupSave').onclick = async e => {
+    const byColour = [0, 1, 2, 3].map(slotVal);
+    const missing = byColour.findIndex(t => !t);
+    if (missing >= 0) { G.toast('Choose a team for the ' + G.COLORS[missing].name.toLowerCase() + ' robot.', 'error'); $('slot' + missing).focus(); return; }
+    const label = $('setupName').value.trim();
+    const editing = setupEditing && G.matchById(d, setupEditing);
+    // Keep an existing match's robot order so its scores stay with the right teams
+    const colors = editing ? editing.colors.slice() : [0, 1, 2, 3];
+    const teamIds = colors.map(c => byColour[c]);
+    try { G.checkLineup(teamIds, colors); } catch (err) { G.toast(err.message, 'error'); return; }
+    let newId = null;
+    const ok = await busy(e.currentTarget, async () => {
+      if (editing) await G.updateMatch(editing.id, label, teamIds, colors);
+      else newId = await G.addMatch(label, teamIds, colors);
+    });
+    if (!ok) return;
+    G.toast(editing ? G.matchName(d, editing.id) + ' saved ✓' : G.matchName(d, newId) + ' added ✓  It is now on every screen\'s schedule.');
+    resetSetupForm();
+  };
+  $('extraList').addEventListener('click', async e => {
+    const b = e.target.closest('button');
+    if (!b) return;
+    if (b.dataset.xedit) editExtra(Number(b.dataset.xedit));
+    else if (b.dataset.xscore) { selectMatch(Number(b.dataset.xscore)); if (selected === Number(b.dataset.xscore)) setTab('score'); }
+    else if (b.dataset.xshow) { followLive = true; await moveLive(Number(b.dataset.xshow), b); }
+    else if (b.dataset.xdel) {
+      const id = Number(b.dataset.xdel), m = G.matchById(d, id);
+      if (!m) return;
+      if (id === d.state.current_match) { G.toast('This match is on the audience display. Show another match first, then delete it.', 'error'); return; }
+      const warn = m.scores || m.live_scores ? '\n\nIts scores will be removed from the standings.' : '';
+      if (!confirm('Delete ' + G.matchName(d, m) + '?' + warn)) return;
+      const ok = await busy(b, () => G.deleteMatch(id));
+      if (ok) { if (setupEditing === id) resetSetupForm(); G.toast(G.matchName(d, m) + ' deleted.'); }
+    }
+  });
+
   // ------------------------------------------------------------ backup / restore / reset
   $('backupBtn').onclick = () => {
     try { G.exportBackup(); G.toast('Backup downloaded.'); }
@@ -1161,13 +1357,14 @@
     let b;
     try { b = G.parseBackup(await f.text()); }
     catch (err) { G.toast(err.message, 'error'); return; }
-    const n = b.scores.filter(Boolean).length;
-    if (!confirm('Restore "' + f.name + '"?\n\nIts 10 team names and ' + n + ' scored matches will REPLACE what is live now on every device.')) return;
+    const n = b.scores.filter(Boolean).length + b.extras.filter(x => x.scores).length;
+    const x = b.extras.length ? ', ' + b.extras.length + ' extra match' + (b.extras.length > 1 ? 'es' : '') : '';
+    if (!confirm('Restore "' + f.name + '"?\n\nIts 10 team names' + x + ' and ' + n + ' scored matches will REPLACE what is live now on every device.')) return;
     const ok = await busy($('restoreBtn'), () => G.restoreBackup(b));
     if (ok) { rosterDirty.fill(false); edit.match = null; edit.key = ''; renderRoster(); renderEditor(); G.toast('Backup restored ✓'); }
   };
   $('resetBtn').onclick = async e => {
-    const a = prompt('This erases ALL 10 team names and ALL 15 match scores on every device.\n\nDownload a backup first! Type RESET to confirm.');
+    const a = prompt('This erases ALL 10 team names and ALL match scores, and deletes any extra matches, on every device.\n\nDownload a backup first! Type RESET to confirm.');
     if (a === null) return;
     if (a.trim().toUpperCase() !== 'RESET') { G.toast('Reset cancelled — you need to type RESET.', 'error'); return; }
     const ok = await busy(e.currentTarget, () => G.resetTournament());

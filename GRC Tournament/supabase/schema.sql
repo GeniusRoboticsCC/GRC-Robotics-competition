@@ -168,8 +168,9 @@ as $$
 begin
   perform public.assert_staff();
 
-  if p_match is null or p_match not between 1 and 15 then
-    raise exception 'Match must be between 1 and 15';
+  -- any match that exists: the 15 qualifying matches plus extra matches (see extra_matches.sql)
+  if p_match is null or not exists (select 1 from public.matches where id = p_match) then
+    raise exception 'That match does not exist';
   end if;
 
   if p_scores is not null and (
@@ -223,8 +224,8 @@ as $$
 begin
   perform public.assert_staff();
 
-  if p_match is null or p_match not between 1 and 15 then
-    raise exception 'Match must be between 1 and 15';
+  if p_match is null or not exists (select 1 from public.matches where id = p_match) then
+    raise exception 'That match does not exist';
   end if;
 
   update public.tournament_state
@@ -294,7 +295,7 @@ begin
 end;
 $$;
 
--- Wipe all scores and team names (the "Reset entire tournament" button)
+-- Wipe all scores and team names and remove extra matches (the "Reset entire tournament" button)
 create or replace function public.reset_tournament()
 returns void
 language plpgsql security definer
@@ -302,6 +303,8 @@ set search_path = public
 as $$
 begin
   perform public.assert_staff();
+
+  delete from public.matches where id > 15;     -- extra matches added by judges
 
   update public.teams
      set name = 'Team ' || id, updated_at = now()
@@ -322,7 +325,8 @@ end;
 $$;
 
 -- Restore a backup file in one step (all-or-nothing)
--- p_scores: JSON array of 15 items, each null or an array of 4 integers
+-- p_scores: JSON array of 15 items, each null or an array of 4 integers.
+-- Extra matches are removed here; the website then re-adds the ones saved in the backup.
 create or replace function public.restore_tournament(p_names text[], p_scores jsonb, p_current int default 1)
 returns void
 language plpgsql security definer
@@ -340,6 +344,12 @@ begin
   end if;
 
   perform public.save_team_names(p_names);
+
+  -- the backup replaces everything, including extra matches (the website re-adds the backup's own)
+  if (select current_match from public.tournament_state where id) > 15 then
+    update public.tournament_state set current_match = 1 where id;
+  end if;
+  delete from public.matches where id > 15;
 
   for i in 1..15 loop
     r := p_scores -> (i - 1);

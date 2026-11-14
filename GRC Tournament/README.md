@@ -126,6 +126,26 @@ Share the **schedule.html** link, or print a QR code of it for the venue. On a p
 select * from public.score_history order by changed_at desc;
 ```
 
+### Extra matches (semi-finals, final…): judges choose who plays who
+
+Judges can add matches after the 15 qualifying matches and pick the four teams that play.
+
+> **One-time setup:** in Supabase open **SQL Editor → New query**, paste all of `supabase/extra_matches.sql` and click **Run**. It's safe to run again, and it works whether or not the other optional files have been run. Until then, the Match setup panel shows a reminder.
+
+1. Go to the **Matches** tab, then the **Match setup · judges** panel at the top.
+2. Give the match a name, such as *Semi-final 1* or *Final*, or leave it blank to call it *Match 16*.
+3. Choose a team for each robot colour: **Red, Blue, Green, Yellow**. A team that's already picked is greyed out in the other lists. **★ Fill with the top 4** puts the current 1st–4th from the standings onto Red, Blue, Green and Yellow.
+4. Tap **＋ Add match**. It appears straight away on every screen: the match chips, the schedule page, and after match 15 on the display.
+5. In the list under the form, each extra match has **✎ Score**, **◫ Show on display**, **Edit teams** and **Delete** buttons. You can also reach them with the **‹ ›** buttons and the match chips.
+
+Good to know:
+- Extra matches are scored exactly like qualifying matches, with + / −, Save scores and the clock and sounds. Their points **count in the standings and awards**, so a team's "Played" goes to 7 when it plays an extra match.
+- Matches run in the order they were added. Add the semi-finals before the final.
+- A match's teams can only change while it has **no scores**. Clear its scores first if you need to. You can rename it at any time.
+- You can't delete the match that's on the audience display. Show another match first.
+- The 15 qualifying matches can't be changed or deleted.
+- **Reset** removes all extra matches. Backups include them, and **Restore** brings them back with their scores.
+
 **Teams tab.** Register or rename teams, copy the share links, **download a backup** (do this after each session), **restore** a backup, or **reset** the tournament (you'll be asked to type RESET).
 
 **Moving data over from the old admin page.** In the old `GRC_Resource_Recovery_Tournament_Admin.html` click **↓ Backup**. Then in the new **Teams** tab click **Restore from backup file**.
@@ -188,6 +208,8 @@ Good to know:
 | Keep-alive run is red ❌ | Check the two secrets are spelled exactly `SUPABASE_URL` and `SUPABASE_ANON_KEY`. If the project already paused, click **Restore** in Supabase |
 | Live stream panel says "One-time setup" | Run `supabase/live_stream.sql` in the SQL Editor, then reload the staff page |
 | Score tab says "+ / − will update every screen live once…" | Run `supabase/live_scores.sql` in the SQL Editor, then reload the staff page |
+| Match setup says "One-time setup" or "Extra matches need a one-time database update" | Run `supabase/extra_matches.sql` in the SQL Editor, then reload the staff page |
+| "This match already has scores" when editing teams | Open that match on the Score tab, tap **Clear**, then change its teams |
 | Screen still says **Live scoring** after the match | Someone tapped + / − but didn't save. Open that match and tap **Save scores** or **Update scores** |
 | No start sound or trumpet | Click once on the display page (the 🔊 prompt must be gone), check **🔊 Sound on** is showing, and turn up the laptop and speaker volume. On iPhone and iPad, make sure the volume is up |
 | Video box is black or says "Video unavailable" | Check the stream is actually live in YouTube Studio. If you restarted it, paste the new link. In the stream's settings, make sure **Allow embedding** is on |
@@ -211,6 +233,7 @@ supabase/schema.sql      database, security rules and functions (already run on 
 supabase/field_release.sql   optional: "Release balls" button + ESP32 servo (see esp32/README.md)
 supabase/live_stream.sql     optional: YouTube live stream on the audience display (see "Live stream" above)
 supabase/live_scores.sql     live + / − scoring on every screen (see "On the day" above)
+supabase/extra_matches.sql   judges add extra matches (semi-finals, final) and pick the teams (see "Extra matches" above)
 esp32/                   optional: ESP32 program that opens the ball gate, with a step-by-step guide
 .github/workflows/keep-alive.yml   daily ping so Supabase never pauses
 ```

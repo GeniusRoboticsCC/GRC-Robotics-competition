@@ -623,10 +623,12 @@
 
   function render() {
     const cur = d.state.current_match;
-    const m = d.matches[cur - 1];
+    const m = G.matchById(d, cur);
     const done = G.scoredCount(d);
+    const total = d.matches.length;                 // 15 qualifying + any extra matches added by judges
 
-    $('nowTitle').innerHTML = 'Match ' + cur + '<small>of ' + G.MATCH_COUNT + '</small>';
+    // "Match 7 of 15" for qualifying matches; an extra match shows its own name, e.g. "Final"
+    $('nowTitle').innerHTML = m.extra ? esc(G.matchName(d, m)) : 'Match ' + cur + '<small>of ' + G.MATCH_COUNT + '</small>';
 
     // Robot cards: the running +/− score while staff are live scoring, the final result once saved.
     // "Match winner" only appears for a final (saved) result.
@@ -655,17 +657,17 @@
     lastShown = shown;
 
     // Up next
-    const nx = d.matches[cur];
+    const nx = G.adjacentMatch(d, cur, 1);
     $('next').innerHTML = nx
-      ? `<span class="d-label">Up next · Match ${nx.id}</span>` + nx.team_ids.map((t, j) =>
+      ? `<span class="d-label">Up next · ${esc(G.matchName(d, nx))}</span>` + nx.team_ids.map((t, j) =>
           `<span class="next-team"><i class="dot" style="--c:${G.COLORS[nx.colors[j]].hex}"></i><span>${esc(G.teamName(d, t))}</span></span>`).join('')
-      : `<span class="d-label">Final match of the qualifying round</span>`;
+      : `<span class="d-label">${m.extra ? 'Last match of the tournament' : 'Final match of the qualifying round'}</span>`;
 
     renderStandings(done);
 
-    $('doneCount').textContent = done + ' / ' + G.MATCH_COUNT + ' played';
-    $('progressText').textContent = done + ' of ' + G.MATCH_COUNT + ' matches complete';
-    $('progressBar').style.width = (done / G.MATCH_COUNT * 100) + '%';
+    $('doneCount').textContent = done + ' / ' + total + ' played';
+    $('progressText').textContent = done + ' of ' + total + ' matches complete';
+    $('progressBar').style.width = (done / total * 100) + '%';
   }
 
   function renderStandings(done) {
@@ -824,7 +826,7 @@
         <div class="wfx-say">
           <div class="wfx-kicker">${many ? 'Winners' : 'Winner'}:</div>
           <div class="wfx-team">${teams.join(' <i>&amp;</i> ')}</div>
-          <div class="wfx-match">in Match <b>${m.id}</b></div>
+          <div class="wfx-match">${m.label ? `in the <b>${esc(m.label)}</b>` : `in Match <b>${m.id}</b>`}</div>
           <div class="wfx-meta">${cols.map(c => `<i class="dot" style="--c:${c.hex}"></i>`).join('')}${cols.map(c => c.name).join(' & ')} robot${many ? 's' : ''} · ${w.top} points</div>
         </div>
       </div>

@@ -38,8 +38,9 @@ declare
 begin
   perform public.assert_staff();
 
-  if p_match is null or p_match not between 1 and 15 then
-    raise exception 'Match must be between 1 and 15';
+  -- any match that exists: the 15 qualifying matches plus extra matches (see extra_matches.sql)
+  if p_match is null or not exists (select 1 from public.matches where id = p_match) then
+    raise exception 'That match does not exist';
   end if;
   if p_slot is null or p_slot not between 0 and 3 then
     raise exception 'Robot must be 0, 1, 2 or 3';
